@@ -1,0 +1,13 @@
+集中式：状态变量 -> 以bus顺序为顺序
+分布式: 状态变量 -> 以node顺序为主
+
+# 如果两个节点之间有支路连接，并且支路上的总线有一个是PMU，那么这两个节点是邻节点。
+self.nodes_graph: binary matrix(self.nodes_num * self.nodes_num)
+  M[i, j] == 1 -> [node i] 出 [node j] 入
+  M[i, j] == 0 -> H_distribute
+
+H_distribute: 2d-list (self.nodes_num * self.nodes_num), element: matrix
+
+# 每个节点在 H 矩阵中有多少行和列
+self.node_row_amount / self.node_col_amount: list
+  L[node]

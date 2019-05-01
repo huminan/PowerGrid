@@ -1,0 +1,24 @@
+# 1-int 2-float 3-character 9-end-flag
+SEPARATOR 2
+Tap_bus_number 1
+Z_bus_number 1
+Load_flow_area 1
+Loss_zone 1
+Circuit 1
+Type 1
+Branch_resistance   2
+Branch_reactance    2
+Line_charging 2
+Line_MVA_rating_No_1 1
+Line_MVA_rating_No_2 1
+Line_MVA_rating_No_3 1
+Control_bus_number  1
+Side 1
+Transformer_final_turns_ratio 2
+Transformer_final_angle 2
+Minimum_tap 2
+Maximum_tap 2
+Step_size 2
+Minimum_voltage     2
+Maximum_voltage     2
+-999 9

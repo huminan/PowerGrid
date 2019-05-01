@@ -1,0 +1,19 @@
+FIXEDSEAT    3
+From_bus_number     1   1-4
+Change_code         1   6-6
+'C'                 3   7-7
+To_bus_number       1   9-12    
+Circuit_number      1   14-14
+Load_flow_area      3   16-16
+Line_resistance     2   18-23
+Line_reactance      2   24-29
+Line_charging_MVAR  2   30-35
+Transformer_tap     2   36-40
+Min_tap     2   41-45   
+Max_tap     2   46-50   
+Phase_shift_angle       2   51-55
+Remote_voltage_bus_number   1   56-60
+Normal_MVA_rating       1   61-64
+Emergency_MVA_rating    1   65-68
+MVA_Base 2   69-72
+9999 9

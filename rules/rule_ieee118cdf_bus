@@ -1,0 +1,22 @@
+# 1-int 2-float 3-character 9-end-flag
+SEPARATOR 2
+bus_number 1
+name       3
+name_non   3
+load_flow_area_number 3
+loss_zone_number 1
+type 1
+final_voltage 2
+final_angle 2
+load_MW 2
+load_MVAR 2
+generation_MW 2
+generation_MVAR 2
+base_KV 2
+desired_volts 2
+max_MVAR 2
+min_MVAR 2
+shunt_conductance 2
+shunt_susceptance 2
+remote_controlled_bus_number 1
+-999 9
