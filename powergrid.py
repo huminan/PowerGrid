@@ -30,7 +30,7 @@ cdf_conf = 'ieee118cdf.txt'
 cdf_rule_bus = './rules/rule_ieee118cdf_bus'
 cdf_rule_branch = './rules/rule_ieee118cdf_branch'
 
-class POWER_GRID_MODEL(object):
+class powergrid(object):
   def __init__(self, size):#, branch, bus, branch_items, bus_items):
     self.size = size  # eliminate reference bus
     G_ij = sb.symbols("G_ij")
@@ -68,6 +68,25 @@ class POWER_GRID_MODEL(object):
     self.is_distribute = False  # Defult is a centralized system
     self.is_reference_deleted = False
 
+#############################################################
+ # 函数 -- 
+ #       gen_gbbsh(): 计算建模所需电路参数
+ # 输入 -- 
+ #       电阻r(resistance),
+ #       电抗x(reactance),
+ #       分流电导gsh,
+ #       分流电纳bsh.
+ # 计算 -- 
+ #       电导g(conductance),
+ #       电纳b(susceptance),
+ #       分流导纳ysh(admittance_shunt).
+ # 公式 -- Note: 阻抗z(impedance)
+ #       z = r + jx              |=> g = r/(r**2 + x**2)
+ #       y = g + jb = z^{-1}     |=> b = x/(r**2 + x**2)
+ #       branch上的ysh = (相连的两个bus上的ysh)/2
+ # 返回 --
+ #       ((g), (b), (ysh));
+#############################################################
   def gen_gbbsh(self, branch_num, resistance, reactance, shunt_conductance, shunt_susceptance):
     self.branch = tuple(branch_num)
 
@@ -85,7 +104,27 @@ class POWER_GRID_MODEL(object):
     self.GBBSH.append(shunt_admittance_branch)
 
     self.GBBSH = tuple(self.GBBSH)
-
+#############################################################
+ # 函数 -- 
+ #       set_edge(): 计算H矩阵中由branch决定的参数
+ # 输入 -- 
+ #       x_operation 上一采样时刻的状态估计值(本例中只有一时刻的数据，所以将当前时刻估计值代入)
+ # 计算 -- 
+ #       求偏导
+ #       
+ # 得到 --
+ #       矩阵 H
+ #       协方差矩阵 R (SCADA,PMU测量仪表分别用不同的默认精度)
+ #       测量数 measure_size (不该在这个函数里首次定义)
+ #       状态数 state_size   (不该在这个函数里首次定义)
+ #  (不应该在这个函数里面的)-->
+ #       上一时刻的状态估计值 x_real (非真实值)
+ #       观测值 z_observed() (数据中未给出，使用x_real加上噪声后*H求得)(非真实值)
+ #       这一时刻的状态估计值 x_est_center
+ #       Phi = H.T*inv(R)*H
+ # 返回 --
+ #       NULL
+#############################################################
   def set_edge(self, x_operation):
     if len(self.GBBSH) == 0:
       raise Exception('Please call \'gen_gbbsh(branch_num, conductance, susceptance)\' first!')
@@ -151,7 +190,20 @@ class POWER_GRID_MODEL(object):
     self.z_observed = self.H * self.x_observed
     self.x_est_center = (self.H.T*self.R_I*self.H).I*self.H.T*self.R_I*self.z_observed
     self.Phi = self.H.T*self.R_I*self.H
-
+#############################################################
+ # 函数 -- (还不够完善，没用上)
+ #       set_variance(): 设置协方差矩阵
+ # 输入 -- 
+ #       R
+ #       -- None: 单位阵
+ #       -- 列表/元组: 协方差阵的对角线元素
+ #       -- 矩阵: 协方差阵
+ # 得到 -- 
+ #       协方差矩阵 R
+ #       Phi = H.T*inv(R)*H
+ # 返回 --
+ #       NULL
+#############################################################
   def set_variance(self, R=None):
     if R is None:
       self.R = np.mat(np.eye(self.measure_size)) * 1
@@ -168,7 +220,19 @@ class POWER_GRID_MODEL(object):
       self.R_I = R.I
     # x_est = Phi.I * alpha
     self.Phi = self.H.T*self.R_I*self.H
-
+#############################################################
+ # 函数 -- 
+ #       set_edge(): 计算H矩阵中由bus决定的参数
+ # 输入 -- 
+ #       bus_num[]  所有总线的编号
+ #       bus_type[] 所有总线的类型: 0->负载总线; 2->发电厂; 3->参考总线
+ #       pmu[]      pmu总线的编号  
+ # 公式 -- 
+ #       SCADA只可以测量(电压)
+ #       PMU可以测量(电压,相角)
+ # 返回 --
+ #       NULL
+#############################################################
   def set_local(self, bus_num, bus_type, pmu=[]):
     self.pmu = pmu
     for bus in bus_num:
@@ -190,7 +254,14 @@ class POWER_GRID_MODEL(object):
         self.R = block_diag(self.R, np.eye(1)*SCADA_VOLTAGE_VARIANCE)
       if bus_type[bus-1] == 3:  # if reference
         self.bus_ref = bus
-
+#############################################################
+ # 函数 -- 
+ #       delete_reference_bus(): 删除H矩阵中的reference总线
+ # 输入 --  
+ #       NULL
+ # 返回 --
+ #       NULL
+#############################################################
   def delete_reference_bus(self):
     self.H = np.delete(self.H, (self.bus_ref-1)*2, 1)
     self.H = np.delete(self.H, (self.bus_ref-1)*2, 1)
@@ -203,7 +274,19 @@ class POWER_GRID_MODEL(object):
     self.Phi = self.H.T*self.R_I*self.H
     self.state_size -= 2
     self.is_reference_deleted = True
-
+#############################################################
+ # 函数 -- 
+ #       print_H(): 调试函数
+ # 输入 -- 
+ #       para: 
+ #       -- # 总线编号
+ #       -- [#,#] 两个总线编号
+ # 功能 --
+ #       看不懂了...
+ #       但有一个功能是打印某总线或某两个总线之间的(功率、电压等)信息
+ # 返回 --
+ #       NULL
+#############################################################
   def print_H(self, para):
     try:
       stop = self.measure_who.index(para)
@@ -353,7 +436,29 @@ class POWER_GRID_MODEL(object):
       print('------------------------------------')
       # np.savetxt('Gamma', Gamma, delimiter = ',')
       exit()
-      
+#############################################################
+ # 函数 -- 
+ #       set_nodes(): 将系统分布化，分割成多个子系统(节点)
+ #                    也就是将H矩阵行列重新排列
+ # 输入 -- 
+ #       nodes[][]  节点包含的所有总线编号
+ #       x_operation 上一时刻估计的状态值 
+ # 得到 -- 
+ #       nodes_num 分割成多少个节点
+ #       node_row_amount[] 每个节点有多少行(测量值) (顺序为节点顺序)
+ #       node_col_amount[] 每个节点有多少列(状态值) (顺序为节点顺序)
+ #       z_distribute[]    每个节点的测量向量 (顺序为节点顺序)
+ #       x_real_list[]     每个节点上一时刻的状态向量 (...)
+ #       x_observed_list[] 每个节点在上一时刻状态向量加噪声后 (...)(没啥用)
+ #       H_distribute[]    每个节点的局部H矩阵 (...)
+ #       R_I_distribute_diag[] 每个节点的局部协方差矩阵(...)
+ #       nodes_graph(np.mat) 各节点间的连接图矩阵
+ #       Phi_graph(np.mat)   各节点间Phi矩阵的连接图矩阵
+ #       Precondition_center(np.mat) precondition矩阵
+ #       Precondition_distribute{}   空的字典, 在这里先声明, 之后迭代计算时用到 
+ # 返回 --
+ #       NULL
+#############################################################
   def set_nodes(self, nodes = [], x_operation=None):
     self.nodes = nodes
     self.nodes_num = len(nodes)   # 表示有多少个节点
@@ -522,7 +627,6 @@ class POWER_GRID_MODEL(object):
         col_cnt += col
       row_cnt += row
       i += 1
-    self.Phi_distribute = Phi_distribute
     self.Phi = Phi
     self.x_est_center = Phi.I*H.T*self.R.I*self.z_observed
 
@@ -541,7 +645,7 @@ class POWER_GRID_MODEL(object):
     # Phi graph
     pg=np.mat(np.zeros([self.nodes_num, self.nodes_num]), dtype='int')
     i=0
-    for m in self.Phi_distribute:
+    for m in Phi_distribute:
       j=0
       for n in m:
         if (len(n.nonzero()[0]) != 0):# and (i!=j):
@@ -649,10 +753,12 @@ class POWER_GRID_MODEL(object):
       cnt += 1
     if is_plot is True:
       plt.figure('坏值检测')
-      plt.title('坏值检测')
+      #plt.title('坏值检测')
       plt.plot(chi_list, 'r--', marker='.')
-      plt.plot(detect_res_list, 'b')
+      plt.plot(detect_res_list, 'b', marker='.')
       plt.legend(['阈值', '残差'], loc='upper right')
+      plt.xlabel("子系统号")
+      plt.ylabel("幅值")
       plt.grid(True)
       plt.show()
 
@@ -710,29 +816,38 @@ class POWER_GRID_MODEL(object):
       #    self.record[i][j,:] = (self.record[i][j,:] / self.record[i][j,-1])
       
       plt.figure('分布式估计（电压）')
-      plt.title(u'状态估计值（电压）')
+      #plt.title(u'状态估计值（电压）')
       plot_cnt = 0
       #plt.plot(sample[0:self.node_col_amount[0],:], self.record[0], 'b.')
       for i in range(self.nodes_num):
         for j in range(0, self.node_col_amount[i], 2):
           plt.plot(self.record[i][j,:].T, 'b', linewidth = 0.5)
       plt.legend([u'电压'], loc='upper right')
+      plt.xlabel("迭代次数")
+      plt.ylabel("幅值")
       plt.show()
 
       plt.figure('分布式估计（相角）')
-      plt.title(u'状态估计值（电压相角）')
+      #plt.title(u'状态估计值（电压相角）')
       for i in range(self.nodes_num):
         for j in range(1, self.node_col_amount[i], 2):
           plt.plot(self.record[i][j,:].T, 'r', linewidth = 0.5)
       plt.legend([u'电压相角'], loc='upper right')
+      plt.xlabel("迭代次数")
+      plt.ylabel("幅值")
       plt.show()
 
       ### 估计状态误差(\bar{x}-x)
+      tmp_cnt=0
       plt.figure('状态估计误差')
       for i in range(self.nodes_num):
-        plt.plot(self.record[i][:,-1] - self.x_real_list[i], 'b.') # 点图
+        tmp_x = range(tmp_cnt,tmp_cnt+self.node_col_amount[i])
+        plt.plot(tmp_x, self.record[i][:,-1] - self.x_real_list[i], 'b.') # 点图
         #plt.bar(np.arange(len(self.x_real_list[i]))+1, (self.record[i][:,-1] - self.x_real_list[i]).T, lw=1)  # 条形图
-      plt.legend([u'状态估计误差'], loc='upper right')
+        tmp_cnt += self.node_col_amount[i]
+      #plt.legend([u'状态估计误差'], loc='upper right')
+      plt.xlabel("状态")
+      plt.ylabel("误差")
       plt.show()
 
   # num -> which node (start from 0)
@@ -1150,7 +1265,7 @@ def main():
 ### 电网建模
   x_operation = s_bus_state
 
-  model = POWER_GRID_MODEL(118)
+  model = powergrid(118)
   PMU = [3,5,9,12,15,17,21,25,114,28,40,37,34,70,71,53,56,45,49,62,64,68,105,110,76,79,100,92,96,85,86,89]
   model.set_local(s_bus_code, bus_type, PMU)
   model.gen_gbbsh(s_branch_code, resistance, reactance, shunt_conductance, shunt_susceptance)
@@ -1199,7 +1314,7 @@ def main():
   # print(model.gen_graph())
   # model.print_H([1,2])
 
-  # falsedata = model.inject_falsedata(sparse_amount=10, amptitude=100)  # 注入5个幅值0-10的虚假数据
+  falsedata = model.inject_falsedata(sparse_amount=10, amptitude=100)  # 注入5个幅值0-100的虚假数据
 ### 分布式估计 ###
   model.gen_estimate(True)
   model.destribute_detect_falsedata(True)
