@@ -1,0 +1,5 @@
+sympy
+scipy
+tqdm
+sklearn
+
