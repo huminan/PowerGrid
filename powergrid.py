@@ -279,6 +279,13 @@ class PowerGrid(object):
 
   # 计算参数矩阵的特性
     print('====================================')
+    print('-----------HTH的复数性质-------------')
+    a,b = np.linalg.eig(self.H.H*self.H)
+    u,v,w = np.linalg.svd(self.H.H*self.H)
+    print('复数条件数: ' + str(linalg.cond(self.H)))
+    print('特征值: ' + str(a))
+    print('奇异值: ' + str(v))
+    print('====================================')
     print('-----------Phi的复数性质-------------')
     a,b = np.linalg.eig(self.Phi)
     u,v,w = np.linalg.svd(self.Phi)
@@ -334,10 +341,10 @@ class PowerGrid(object):
 
   # 保存矩阵到txt文件
     if record is True:
-      np.savetxt('H', self.H, delimiter = ',')
+      np.savetxt('./save/H', self.H, delimiter = ',')
       if self.is_distribute is True:
-        np.savetxt('Gamma', Gamma, fmt='%.1f', delimiter = ',')
-        np.savetxt('Precondition', self.Precondition_center, fmt='%.1f', delimiter = ',')
+        np.savetxt('./save/Gamma', Gamma, fmt='%.1f', delimiter = ',')
+        np.savetxt('./save/Precondition', self.Precondition_center, fmt='%.1f', delimiter = ',')
 
   def gen_H(self):
     return self.H

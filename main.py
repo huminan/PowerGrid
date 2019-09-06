@@ -1,6 +1,8 @@
 from linear_powergrid import LinearPowerGrid
-from distributed_linear_powergrid import DistributedLinearPowerGrid
+from decentralized.estimators import Richardson
 import extract_config
+
+CENTRAL = False
 
 # 不显示warnings
 import warnings
@@ -36,7 +38,7 @@ def main():
   x_operation = s_bus_state
   PMU = [3,5,9,12,15,17,21,25,114,28,40,37,34,70,71,53,56,45,49,62,64,68,105,110,76,79,100,92,96,85,86,89]
 
-  if True:
+  if CENTRAL:
     model = LinearPowerGrid(118)
     model.set_local(s_bus_code, bus_type, PMU)
     model.gen_gbbsh(s_branch_code, resistance, reactance, shunt_conductance, shunt_susceptance)
@@ -50,7 +52,7 @@ def main():
     model.detect_baddata()
 
   else:
-    model = DistributedLinearPowerGrid(118)
+    model = Richardson(118)
     model.set_local(s_bus_code, bus_type, PMU)
     model.gen_gbbsh(s_branch_code, resistance, reactance, shunt_conductance, shunt_susceptance)
     model.set_edge(x_operation)
@@ -60,7 +62,7 @@ def main():
     #falsedata = model.inject_baddata(sparse_amount=100, amptitude=5)  # 注入5个幅值0-100的虚假数据
     falsedata = model.inject_falsedata_PCA(sparse_amount=2, amptitude=100)  # 注入5个幅值0-100的虚假数据
     print(falsedata['measurement_injected'])
-    model.detect_baddata()
+    model.detect_baddata(centralized=True)
 ########## 删除某些测量值 ###########
     '''
     res = model.delete_measurements(busTobeDeleted = falsedata['measurement_injected_sequence'])
@@ -96,13 +98,13 @@ def main():
     '''
     #model.set_variance(R)  # 方差矩阵 (Default: 单位矩阵)
     model.set_nodes(nodes, x_operation)
-    model.summary()
+    # model.summary()
   ############# 分布式建模完毕 ###############
     # print(model.gen_graph())
     #model.print_H(1)
     #falsedata = model.inject_falsedata(sparse_amount=10, amptitude=100)  # 注入5个幅值0-100的虚假数据
   ### 分布式估计 ###
-    model.fit(True)
+    model.estimator(main_period=500 ,gamma_period=100)
     model.detect_baddata(True)
 
 if __name__ == '__main__':
