@@ -60,8 +60,8 @@ def main():
     #model.delete_reference_bus()
 ########## 注入虚假数据 ###########
     #falsedata = model.inject_baddata(sparse_amount=100, amptitude=5)  # 注入5个幅值0-100的虚假数据
-    falsedata = model.inject_falsedata_PCA(sparse_amount=2, amptitude=100)  # 注入5个幅值0-100的虚假数据
-    print(falsedata['measurement_injected'])
+    #falsedata = model.inject_falsedata_PCA(sparse_amount=2, amptitude=100)  # 注入5个幅值0-100的虚假数据
+    #print(falsedata['measurement_injected'])
     model.detect_baddata(centralized=True)
 ########## 删除某些测量值 ###########
     '''
@@ -102,10 +102,10 @@ def main():
   ############# 分布式建模完毕 ###############
     # print(model.gen_graph())
     #model.print_H(1)
-    #falsedata = model.inject_falsedata(sparse_amount=10, amptitude=100)  # 注入5个幅值0-100的虚假数据
+    falsedata = model.inject_falsedata(sparse_amount=10, amptitude=60)  # 注入5个幅值0-100的虚假数据
   ### 分布式估计 ###
-    model.estimator(main_period=500 ,gamma_period=100)
-    model.detect_baddata(True)
+    model.estimator(main_period=300 ,gamma_period=100, is_async=True)
+    model.detect_baddata(is_plot=True)
 
 if __name__ == '__main__':
   main()

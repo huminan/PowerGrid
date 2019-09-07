@@ -234,14 +234,14 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
   #############################################################
   # 函数 -- 
   #       estimator(): 进行分布式估计
-  #       callbackfun : 回调函数
-  #       period: 迭代周期
   # 输入 -- 
+  #       period: 迭代周期
+  #       sync: 是否使用同步算法: [True,False]
   #       is_plot 是否画图: [True,False]
   # 返回 --
   #       NULL
   #############################################################
-  def estimator(self, period, is_plot=False):
+  def estimator(self, period, sync=True, is_plot=False):
     pass
 
   #############################################################
@@ -311,7 +311,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
   # 返回 --
   #       邻居节点号 (1d-list)(start from 0)
   #############################################################
-  def detect_baddata(self, centralized=False, is_plot = False):
+  def detect_baddata(self, centralized=False, is_plot = True):
     if centralized:
       super().detect_baddata()
     else:
