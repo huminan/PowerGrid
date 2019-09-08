@@ -13,7 +13,7 @@ import matplotlib.pylab as pylab
 
 GAMMA_MAX_EIGEN_PERIOD = 100       # 计算Gamma特征值的循环次数
 MAIN_LOOP_PERIOD = 500    # 主程序循环次数
-DEFAULT_DIFF_LIMIT = 50   # 每个节点能比其它节点最多快多少周期
+DEFAULT_DIFF_LIMIT = 40   # 每个节点能比其它节点最多快多少周期
 
 #************************************************************
  #* 类 -- 
@@ -28,9 +28,10 @@ class Richardson(DistributedLinearPowerGrid):
   #############################################################
   # 函数 -- 
   #       estimator(): 进行分布式估计的估计器，在每个子节点上运行的算法
+  # 输入 -- 
   #       main_period: 迭代周期
   #       gamma_period: 迭代周期
-  # 输入 -- 
+  #       is_async: 是否异步: <False,True>
   #       is_plot 是否画图: <True,False>
   # 返回 --
   #       NULL
@@ -144,7 +145,6 @@ class Richardson(DistributedLinearPowerGrid):
   #       NULL
   #############################################################
   def __sync_estimator(self, num, lock_con, main_period, gamma_period):
-    import threading
     # neighbors whose measurement include mine
     neighbor_in_him = self.get_neighbor(num, -1)
     # neighbors who is in my measurement
@@ -183,7 +183,7 @@ class Richardson(DistributedLinearPowerGrid):
     # 初始化x_0，全部置0
     x_est = np.mat(np.zeros([self.node_col_amount[num], 1]), dtype=complex)
 
-  ## 计算Gamma的最大特征值 ##
+    ## 计算Gamma的最大特征值 ##
     # initial b_0 with random ||b_0|| = 1 
     b_bar = np.mat(np.random.rand(self.node_col_amount[num], 1), dtype=complex)
     b_bar = b_bar / np.linalg.norm(b_bar,ord=2)	# normallize
@@ -265,7 +265,7 @@ class Richardson(DistributedLinearPowerGrid):
     Gamma_max = 1 / yita
     print('%s-Gamma最大特征值: %.3f' % (threading.current_thread().name, Gamma_max))
     
-  ## 计算Gamma的最小特征值 ##
+    ## 计算Gamma的最小特征值 ##
     # 初始化
     # initial b_0 with random ||b_0|| = 1 
     b_bar = np.mat(np.random.rand(self.node_col_amount[num], 1), dtype=complex)
@@ -409,7 +409,7 @@ class Richardson(DistributedLinearPowerGrid):
   #       __async_estimator(): 各分布式节点的异步估计器
   # 输入 -- 
   #       num 该节点的节点号(从0开始计)
-  #       lock_con 锁？
+  #       lock_con 锁, 计算Gamma最大最小特征值时依然使用同步算法
   #       main_period: 迭代周期
   #       gamma_period: 迭代周期
   # 返回 --

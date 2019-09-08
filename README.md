@@ -34,6 +34,7 @@ This project up to now have built a DC power grid simulator environment with IEE
 ## Alogrithm need to do
 
 - [ ] Other classical distributed state estimation algorithms
+- [ ] Asychronism type of these distributed algorithms
 - [ ] FDI Attack with implement topology information [[2]](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.714.756&rep=rep1&type=pdf)
 - [ ] FDI Attack with only measurement information (ICA, PCA) [[3]](https://sci-hub.se/https://ieeexplore.ieee.org/abstract/document/6102326/) [[4]](https://sci-hub.se/https://ieeexplore.ieee.org/abstract/document/7001709/)
 - [ ] FDI Defend [[5]](https://ptolemy.berkeley.edu/projects/truststc/conferences/10/CPSWeek/papers/scs1_paper_2.pdf)

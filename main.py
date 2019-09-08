@@ -2,7 +2,7 @@ from linear_powergrid import LinearPowerGrid
 from decentralized.estimators import Richardson
 import extract_config
 
-CENTRAL = False
+CENTRAL = True
 
 # 不显示warnings
 import warnings
@@ -18,7 +18,7 @@ cdf_rule_bus = './rules/rule_ieee118cdf_bus'
 cdf_rule_branch = './rules/rule_ieee118cdf_branch'
 
 def main():
-### CDF Format ###
+  ### CDF Format ###
   bus_cdf = extract_config.tools(cdf_conf, cdf_rule_bus, 0)
   branch_cdf = extract_config.tools(cdf_conf, cdf_rule_branch, 1)
 
@@ -34,7 +34,7 @@ def main():
   bus_type = bus_cdf.get_items(5)   # Bus type: 0 -> Load
                                     #           2 -> Generation
                                     #           3 -> Reference
-### 电网建模
+  ### 电网建模 ###
   x_operation = s_bus_state
   PMU = [3,5,9,12,15,17,21,25,114,28,40,37,34,70,71,53,56,45,49,62,64,68,105,110,76,79,100,92,96,85,86,89]
 
@@ -43,13 +43,13 @@ def main():
     model.set_local(s_bus_code, bus_type, PMU)
     model.gen_gbbsh(s_branch_code, resistance, reactance, shunt_conductance, shunt_susceptance)
     model.set_edge(x_operation)
-    #model.summary()
     #model.delete_reference_bus()
-########## 集中式建模完毕 ###########
-    falsedata = model.inject_baddata(sparse_amount=100, amptitude=5)  # 注入5个幅值0-100的虚假数据
-    #falsedata = model.inject_falsedata_PCA(sparse_amount=2, amptitude=100)  # 注入5个幅值0-100的虚假数据
-    print(falsedata['measurement_injected'])
-    model.detect_baddata()
+    ### 集中式建模完毕 ###
+    #model.inject_baddata(moment=5, probability=50)  # 在第5个仿真时刻开始每个仪表有10/10e6的概率产生坏数据
+    #model.inject_falsedata(moment=5)  # 在第5个仿真时刻开始注入隐匿虚假数据
+    #model.inject_falsedata_PCA(moment=500)  # 在第30个仿真时刻开始注入PCA隐匿虚假数据
+    model.estimator(sim_time=10, variance=1)  # 在状态幅值0-1内任意变化的情况下进行估计
+    #model.summary()
 
   else:
     model = Richardson(118)
@@ -102,7 +102,7 @@ def main():
   ############# 分布式建模完毕 ###############
     # print(model.gen_graph())
     #model.print_H(1)
-    falsedata = model.inject_falsedata(sparse_amount=10, amptitude=60)  # 注入5个幅值0-100的虚假数据
+    # falsedata = model.inject_falsedata(sparse_amount=10, amptitude=60)  # 注入5个幅值0-100的虚假数据
   ### 分布式估计 ###
     model.estimator(main_period=300 ,gamma_period=100, is_async=True)
     model.detect_baddata(is_plot=True)

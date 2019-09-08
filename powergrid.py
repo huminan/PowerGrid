@@ -12,9 +12,16 @@ from sklearn.decomposition import PCA
 from decimal import Decimal
 from enum import Enum
 
+#************************************************************
+#* PowerGrid 类 -- 
+#*       电网基类，初始化电网参数
+#*       暂时只有线性直流模型的参数
+#*
+#************************************************************
 class PowerGrid(object):
-  def __init__(self, size):#, branch, bus, branch_items, bus_items):
-    self.size = size  # eliminate reference bus
+  def __init__(self, size, sim_time=1):
+    self.size = size
+    self.sim_time = sim_time
     G_ij = sb.symbols("G_ij")
     B_ij = sb.symbols("B_ij")
     BSH_ij = sb.symbols("BSH_ij")
@@ -37,9 +44,9 @@ class PowerGrid(object):
 
     self.branch = []
 
-    self.H = np.mat(np.zeros([0, 2*size]), dtype=complex)
-    self.R = np.mat(np.zeros([0, 0]), dtype=complex)
-    self.z_observed = np.mat(np.zeros([0,0]))
+    self.H = np.mat(np.zeros([0, 2*size]), dtype=complex) # 量测矩阵
+    self.R = np.mat(np.zeros([0, 0]), dtype=complex)      # 量测协方差矩阵
+    self.z_observed = np.mat(np.zeros([0,0]))             # 量测值
     self.measure_who = []   # Indicate whose z: single i -> bus i
                       #                   [i, i]   -> pmu i
                       #                   [i, j]   -> branch i -> j
@@ -50,25 +57,25 @@ class PowerGrid(object):
     self.is_distribute = False  # Defult is a centralized system
     self.is_reference_deleted = False
 
-#############################################################
- # 函数 -- 
- #       gen_gbbsh(): 计算建模所需电路参数
- # 输入 -- 
- #       电阻r(resistance),
- #       电抗x(reactance),
- #       分流电导gsh,
- #       分流电纳bsh.
- # 计算 -- 
- #       电导g(conductance),
- #       电纳b(susceptance),
- #       分流导纳ysh(admittance_shunt).
- # 公式 -- Note: 阻抗z(impedance)
- #       z = r + jx              |=> g = r/(r**2 + x**2)
- #       y = g + jb = z^{-1}     |=> b = x/(r**2 + x**2)
- #       branch上的ysh = (相连的两个bus上的ysh)/2
- # 返回 --
- #       ((g), (b), (ysh));
-#############################################################
+  #############################################################
+  # 函数 -- 
+  #       gen_gbbsh(): 计算建模所需电路参数
+  # 输入 -- 
+  #       电阻r(resistance),
+  #       电抗x(reactance),
+  #       分流电导gsh,
+  #       分流电纳bsh.
+  # 计算 -- 
+  #       电导g(conductance),
+  #       电纳b(susceptance),
+  #       分流导纳ysh(admittance_shunt).
+  # 公式 -- Note: 阻抗z(impedance)
+  #       z = r + jx              |=> g = r/(r**2 + x**2)
+  #       y = g + jb = z^{-1}     |=> b = x/(r**2 + x**2)
+  #       branch上的ysh = (相连的两个bus上的ysh)/2
+  # 返回 --
+  #       ((g), (b), (ysh));
+  #############################################################
   def gen_gbbsh(self, branch_num, resistance, reactance, shunt_conductance, shunt_susceptance):
     self.branch = tuple(branch_num)
 
@@ -87,20 +94,20 @@ class PowerGrid(object):
 
     self.GBBSH = tuple(self.GBBSH)
 
-#############################################################
- # 函数 -- (还不够完善，没用上)
- #       set_variance(): 设置协方差矩阵
- # 输入 -- 
- #       R
- #       |-- None: 单位阵
- #       |-- 列表/元组: 协方差阵的对角线元素
- #       |-- 矩阵: 协方差阵
- # 得到 -- 
- #       协方差矩阵 R
- #       Phi = H.H*inv(R)*H
- # 返回 --
- #       NULL
-#############################################################
+  #############################################################
+  # 函数 -- (还不够完善，没用上)
+  #       set_variance(): 设置协方差矩阵
+  # 输入 -- 
+  #       R
+  #       |-- None: 单位阵
+  #       |-- 列表/元组: 协方差阵的对角线元素
+  #       |-- 矩阵: 协方差阵
+  # 得到 -- 
+  #       协方差矩阵 R
+  #       Phi = H.H*inv(R)*H
+  # 返回 --
+  #       NULL
+  #############################################################
   def set_variance(self, R=None):
     if R is None:
       self.R = np.mat(np.eye(self.measure_size)) * 1
@@ -118,27 +125,27 @@ class PowerGrid(object):
     # x_est = Phi.I * alpha
     self.Phi = self.H.H*self.R_I*self.H
 
-#############################################################
- # 函数 -- 
- #       summary(): 查看模型各项参数
- # 输入 -- 
- #      * para: 
- #        |-- #     总线编号
- #        |-- [#,#] 两个总线编号
- #        |-- None  待开发
- #      * visualize: 矩阵参数可视化
- #      * record: 是否保存矩阵为txt格式文件
- # 功能 --
- #       看不懂了...
- #       但有一个功能是打印某总线或某两个总线之间的(功率、电压等)信息
- # 返回 --
- #       NULL
-#############################################################
+  #############################################################
+  # 函数 -- 
+  #       summary(): 查看模型各项参数
+  # 输入 -- 
+  #      * para: 
+  #        |-- #     总线编号
+  #        |-- [#,#] 两个总线编号
+  #        |-- None  待开发
+  #      * visualize: 矩阵参数可视化
+  #      * record: 是否保存矩阵为txt格式文件
+  # 功能 --
+  #       看不懂了...
+  #       但有一个功能是打印某总线或某两个总线之间的(功率、电压等)信息
+  # 返回 --
+  #       NULL
+  #############################################################
   def summary(self, para=None, record=False, visualize=False):
     # 声明变量
     Gamma = np.empty((self.state_size,self.state_size), dtype=complex)
   
-  # 显示bus之间的参数
+    # 显示bus之间的参数
     if para is not None:
       try:
         stop = self.measure_who.index(para)
@@ -277,7 +284,7 @@ class PowerGrid(object):
         pass
       print('')
 
-  # 计算参数矩阵的特性
+    # 计算参数矩阵的特性
     print('====================================')
     print('-----------HTH的复数性质-------------')
     a,b = np.linalg.eig(self.H.H*self.H)
@@ -303,7 +310,7 @@ class PowerGrid(object):
     print('最大奇异值: ' + str(max(v)))
     print('最小奇异值: ' + str(min(v)))
     print('====================================')
-  # 计算Gamma的特性
+    # 计算Gamma的特性
     if self.is_distribute is True:
       print('----------Gamma的复数性质------------')
       Gamma = np.linalg.cholesky(self.Precondition_center).T * self.Phi * np.linalg.cholesky(self.Precondition_center)
@@ -327,7 +334,7 @@ class PowerGrid(object):
       #print('对称性:' + str(np.linalg.norm(Gamma.H-Gamma, ord=2)))
       print('====================================')
 
-  # 可视化
+    # 可视化
     if visualize is True:
       plt.matshow(self.Phi.astype(float))
       plt.show()
@@ -339,7 +346,7 @@ class PowerGrid(object):
         plt.matshow(self.nodes_graph)
         plt.show()
 
-  # 保存矩阵到txt文件
+    # 保存矩阵到txt文件
     if record is True:
       np.savetxt('./save/H', self.H, delimiter = ',')
       if self.is_distribute is True:
@@ -352,11 +359,11 @@ class PowerGrid(object):
   def gen_Phi(self):
     return self.Phi
 
-### Calculate the Jacobi matrix (a symbolic list)
-# input: M -> a symbolic 1d-list, 
-#             every element is a function with unkown values <- X
-# output : a symbolic 2d-list, consist a symbolic jacobi matrix.
-## Then, use function __symbol_assignment() to assign value 
+  ### Calculate the Jacobi matrix (a symbolic list)
+  # input: M -> a symbolic 1d-list, 
+  #             every element is a function with unkown values <- X
+  # output : a symbolic 2d-list, consist a symbolic jacobi matrix.
+  ## Then, use function __symbol_assignment() to assign value 
   def __jacob(self, M, X):
     J = []
     for i in range(len(M)):
@@ -457,3 +464,5 @@ class PowerGrid(object):
     z_a = np.percentile(pdf, confidence)  # 标准正态分布的confidence分位数
     chi = 1/2*(z_a + np.sqrt(2*dim-1))**2
     return chi
+  
+    

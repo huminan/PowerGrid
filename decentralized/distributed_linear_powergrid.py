@@ -11,7 +11,6 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
   def __init__(self, size):
     super().__init__(size=size)
     self.is_distribute = True
-
 #############################################################
  # 函数 -- 
  #       set_nodes(): 将系统分布化，分割成多个子系统(节点)
@@ -133,7 +132,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
     # 按节点排序后的状态
     x_reorder = x[seq,:]
     # 真实状态值
-    self.x_real = x_reorder
+    self.__x_real = x_reorder
     # 有噪声的状态值
     self.x_observed = x_reorder + np.random.random((self.state_size,1))
 
@@ -151,7 +150,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
     self.x_observed_list = []
     tmp_cnt = 0
     for i in range(self.nodes_num):
-      self.x_real_list.append(self.x_real[tmp_cnt:tmp_cnt+self.node_col_amount[i],:])
+      self.x_real_list.append(self.__x_real[tmp_cnt:tmp_cnt+self.node_col_amount[i],:])
       self.x_observed_list.append(self.x_observed[tmp_cnt:tmp_cnt+self.node_col_amount[i],:])
       tmp_cnt += self.node_col_amount[i]
 
@@ -287,7 +286,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
   #                               以同样的形式(稀疏数)再重新注入另一个攻击.
   #                               若measure_tobe_injected=None, 那么就是随机生成, 不建议这么搞
   #                            注: (现在重新注入攻击还只能随机, 以后补充)
-  # 返回 --
+  # 返回 -- 
   #     * falsedata_info_dict [type:dic]
   #                     攻击向量的特性 - state_injected: 注入的状态攻击向量
   #                                  - measurement_injected: 注入的测量攻击向量
