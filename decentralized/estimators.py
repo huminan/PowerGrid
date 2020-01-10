@@ -163,6 +163,7 @@ class Richardson:
       plt.show()
     #print(self.x_est_distribute_lists)
     ''' 保存 '''
+    '''
     mat_save_dict = {}
     for i in range(self.nodes_num):
       for j in range(self.nodes_num):
@@ -171,6 +172,7 @@ class Richardson:
         mat_save_dict['R'+str(i)] = self.R_I_distribute_diag[i]
       print(self.sigma[i])
     sio.savemat('./save/sys.mat', mat_save_dict)
+    '''
     return self.x_est_distribute_lists,self.x_est_distribute
 
   def __maxmin_eigenvalue(self, num, lock_con, is_finite_time=False):
