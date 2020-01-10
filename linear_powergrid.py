@@ -1,4 +1,4 @@
-from powergrid import PowerGrid
+from base import StateEstimationBase
 import numpy as np
 import random
 from scipy.linalg import block_diag
@@ -7,255 +7,407 @@ import matplotlib.pyplot as plt
 #plt.rcParams['font.sans-serif'] = ['SimHei']  # 正常显示中文
 plt.rcParams['axes.unicode_minus'] = False  # 正常显示负号
 import matplotlib.pylab as pylab
+import time
+import os
+import json
 
-# Measure variance 
-###### 真实参数 ######
-# PMU: 电压-0.002%pu; 相角-0.01度
-# SCADA: 电压-0.3%pu; 功率-0.3%pu
-####### over ########
 PMU_VOLTAGE_VARIANCE = .002
 PMU_ANGLE_VARIANCE = .01
 SCADA_VOLTAGE_VARIANCE = .3
 SCADA_POWER_VARIANCE = .3
 
-STATE_VARIENCE = 1e-3
-
-class LinearPowerGrid(PowerGrid):
-  def __init__(self, size):
-    super().__init__(size=size)
-    self.A = np.mat(np.eye(2*size), dtype=complex)        # 状态转移矩阵
-    self.G = np.mat(np.zeros((2*size,1), dtype=complex))  # 状态轨迹向量
+class LinearPowerGrid(StateEstimationBase):
+  def __init__(self, pmu=[], conf_dict={}):
+    super().__init__(pmu=pmu, conf_dict=conf_dict)
+    # 标记
     self.is_baddata = False
     self.is_FDI = False
     self.is_FDI_PCA = False
+    # 变量声明
     self.time_baddata = 0
     self.time_falsedata = 0
+    self.x_est_center = np.zeros((2*self.size,1))
+    self.z_observed_history = None
+    self.x_predict = np.zeros((2*self.size,1))
+    # 提前声明
+    self.row_reorder_matrix = None
+    self.col_reorder_matrix = None
+    # 计算参数(R)
+    self.set_variance_matrix()
+    self.set_linear_model()
+    # 创建量测
+    self.z_observed = self.create_measurement(self.x_real) + self.R_error * np.mat(np.random.random((self.measure_size,1))) # 真实量测加上噪声
 
-  #############################################################
-  # 函数 -- 
-  #       set_edge(): 计算H矩阵中由bus决定的参数
-  # 输入 -- 
-  #       bus_num[]  所有总线的编号
-  #       bus_type[] 所有总线的类型: 0->负载总线; 2->发电厂; 3->参考总线
-  #       pmu[]      pmu总线的编号  
-  # 公式 -- 
-  #       SCADA只可以测量(电压)
-  #       PMU可以测量(电压,相角)
-  # 返回 --
-  #       NULL
-  #############################################################
-  def set_local(self, bus_num, bus_type, pmu=[]):
-    self.pmu = pmu
-    for bus in bus_num:
-      if bus in pmu:  # PMU
-        a = np.mat(np.zeros([2, 2*self.size]))
-        a[0,2*(bus-1)] = 1
-        a[1,2*(bus-1)+1] = 1
-        self.H = np.row_stack((self.H, a))
-        self.measure_who.append([bus, bus])
-        # Variance matrix
-        self.R = block_diag(self.R, np.eye(1)*(PMU_VOLTAGE_VARIANCE**2))
-        self.R = block_diag(self.R, np.eye(1)*(PMU_ANGLE_VARIANCE**2))
-      else: # SCADA
-        a = np.mat(np.zeros([1, 2*self.size]))
-        a[0,2*(bus-1)] = 1
-        self.H = np.row_stack((self.H, a))
-        self.measure_who.append(bus)
-        # Variance matrix
-        self.R = block_diag(self.R, np.eye(1)*(SCADA_VOLTAGE_VARIANCE**2))
-      if bus_type[bus-1] == 3:  # if reference
-        self.bus_ref = bus
+  def set_linear_model(self):
+    if self.model_name == 'PowerGrid':
+      # 从缓存提取
+      if os.path.exists('cache/IEEE_'+str(self.size)+'_linear_info.json') is True:
+        with open('cache/IEEE_'+str(self.size)+'_linear_info.json','r',encoding='utf-8') as f:
+          saved_conf = json.load(f)
+          self.H = np.mat(saved_conf['H_real'],dtype=complex)+np.mat(saved_conf['H_imag'])*(1j)
+          self.measure_size = saved_conf['measure_size']
+          self.state_size = saved_conf['state_size']
+        self.Phi = self.H.H * self.R_I * self.H
+      else:
+        # 计算H矩阵
+        self.H,self.Phi = self.jaccobi_H(self.x_real)
+        self.measure_size = self.H.shape[0]  # 量测数量
+        self.state_size = self.H.shape[1]    # 状态数量
+        # 保存当前配置
+        conf_to_save = {
+          'H_real': self.H.real.astype(float).tolist(),
+          'H_imag': self.H.imag.astype(float).tolist(),
+          'measure_size': self.measure_size,
+          'state_size': self.state_size,
+        }
+        with open('cache/IEEE_'+str(self.size)+'_linear_info.json','w',encoding='utf-8') as f:
+          f.write(json.dumps(conf_to_save,ensure_ascii=False))
+    elif self.model_name == 'WSNs':
+      # 从缓存提取
+      if os.path.exists('cache/WSNs_'+str(self.size)+'_linear_info.json') is True:
+        with open('cache/WSNs_'+str(self.size)+'_linear_info.json','r',encoding='utf-8') as f:
+          saved_conf = json.load(f)
+          self.H = np.mat(saved_conf['H_real'],dtype=complex)+np.mat(saved_conf['H_imag'])*(1j)
+          self.measure_size = saved_conf['measure_size']
+          self.state_size = saved_conf['state_size']
+        self.Phi = self.H.H * self.R_I * self.H
+      else:
+        # 计算H矩阵
+        self.H,self.Phi = self.jaccobi_H(self.x_real)
+        self.measure_size = self.H.shape[0]  # 量测数量
+        self.state_size = self.H.shape[1]    # 状态数量
+        # 保存当前配置
+        conf_to_save = {
+          'H_real': self.H.real.astype(float).tolist(),
+          'H_imag': self.H.imag.astype(float).tolist(),
+          'measure_size': self.measure_size,
+          'state_size': self.state_size,
+        }
+        with open('cache/WSNs_'+str(self.size)+'_linear_info.json','w',encoding='utf-8') as f:
+          f.write(json.dumps(conf_to_save,ensure_ascii=False))
 
-  #############################################################
-  # 函数 -- 
-  #       set_edge(): 计算H矩阵中由branch决定的参数
-  # 输入 -- 
-  #       x_operation 上一采样时刻的状态估计值(本例中只有一时刻的数据，所以将当前时刻估计值代入)
-  # 计算 -- 
-  #       求偏导
-  #       
-  # 得到 --
-  #       矩阵 H
-  #       协方差矩阵 R (SCADA,PMU测量仪表分别用不同的默认精度)
-  #       测量数 measure_size (不该在这个函数里首次定义)
-  #       状态数 state_size   (不该在这个函数里首次定义)
-  #  (不应该在这个函数里面的)-->
-  #       状态估计值 __x_real (真实值)
-  #       观测值 __z_real (数据中未给出，使用__x_real*H得到)
-  #       观测值 z_observed (__z_real加上噪声后得到)(非真实值)
-  #       这一时刻的状态估计值 x_est_center
-  #       Phi = H.H*inv(R)*H
-  # 返回 --
-  #       NULL
-  #############################################################
-  def set_edge(self, x_operation):
-    if len(self.GBBSH) == 0:
-      raise Exception('Call function \'gen_gbbsh(branch_num, conductance, susceptance)\' first!')
-    tmp_H = self.H
-    cnt=0
-    for branch_out,branch_in in zip(self.branch[0],self.branch[1]):
-      # Substitute operation point x0 and g_ij, b_ij, bsh_ij to jacobbi matrices B_ij and B_ji
-      tmp_ij = []
-      for i in range(len(self.jacobi_h_ij)):
-        tmp_ij.append([])
-        for j in range(len(self.jacobi_h_ij[i])):
-          tmp_ij[i].append(self.jacobi_h_ij[i][j])
-          for k in range(len(self.state_i_symbol)):
-            tmp_ij[i][j] = tmp_ij[i][j].subs(self.state_i_symbol[k], x_operation[k][branch_out-1])
-          for k in range(len(self.state_j_symbol)):
-            tmp_ij[i][j] = tmp_ij[i][j].subs(self.state_j_symbol[k], x_operation[k][branch_in-1])
-          for k in range(len(self.value_symbol)):
-            tmp_ij[i][j] = tmp_ij[i][j].subs(self.value_symbol[k], self.GBBSH[k][cnt])
-      tmp_ji = []
-      for i in range(len(self.jacobi_h_ji)):
-        tmp_ji.append([])
-        for j in range(len(self.jacobi_h_ji[i])):
-          tmp_ji[i].append(self.jacobi_h_ji[i][j])
-          for k in range(len(self.state_i_symbol)):
-            tmp_ji[i][j] = tmp_ji[i][j].subs(self.state_i_symbol[k], x_operation[k][branch_out-1])
-          for k in range(len(self.state_j_symbol)):
-            tmp_ji[i][j] = tmp_ji[i][j].subs(self.state_j_symbol[k], x_operation[k][branch_in-1])
-          for k in range(len(self.value_symbol)):
-            tmp_ji[i][j] = tmp_ji[i][j].subs(self.value_symbol[k], self.GBBSH[k][cnt])
-      # Flag
-      self.measure_who.append([branch_out, branch_in])
-      # 
-      a = np.mat(np.zeros([2, 2*self.size]), dtype=complex)
-      for i in range(len(tmp_ij)):
-        for j in range(len(tmp_ij[i])):
-          a[i, 2*(branch_out-1)+j] = tmp_ij[i][j]
-      for i in range(len(tmp_ji)):
-        for j in range(len(tmp_ji[i])):
-          a[i, 2*(branch_in-1)+j] = tmp_ji[i][j]
-      # print(a[:,2*(branch_out-1):2*(branch_out-1)+2])
-      # print(a[:,2*(branch_in-1):2*(branch_in-1)+2])
-      tmp_H = np.row_stack((tmp_H, a))
-      # print(tmp_H[])
-      #
-      # Variance matrix
-      self.R = block_diag(self.R, np.eye(2)*(SCADA_POWER_VARIANCE**2))
-      cnt += 1
-    self.H = tmp_H
+  def jaccobi_H(self, x_operation):
+    """
+    计算H矩阵中由branch与bus决定的参数
+      以文件中的out和in为准, 将测量仪表放置在out处.
+
+    输入
+    ----
+    order: 节点排列的顺序(对分布式系统有用)
+    x_operation: 上一采样时刻的状态估计值(第一次将初始时刻真实值代入)
+
+    中间结果
+    ----
+      测量数: measure_size (不该在这个函数里首次定义)
+      状态数: state_size   (不该在这个函数里首次定义)
+
+    公式
+    ----
+      SCADA只可以测量(电压)
+      PMU可以测量(电压,相角)
+
+    返回
+    ----
+    雅可比矩阵: Jaccobi_H
+    """
+    # 初始化
+    Jaccobi_H = np.mat(np.zeros([0, 2*self.size]), dtype=complex)   # 量测矩阵
+    node_list = list(self.bus_info_dict.keys())
+    if self.model_name == 'PowerGrid':
+      # 配置总线测量
+      cnt = 0
+      for bus,bus_info_dict in self.bus_info_dict.items():
+        if bus_info_dict['attr'] is 'PMU':
+          a = np.mat(np.zeros([2, 2*self.size]))
+          a[0,cnt] = 1
+          a[1,cnt+1] = 1
+          Jaccobi_H = np.row_stack((Jaccobi_H, a))
+        else:
+          a = np.mat(np.zeros([1, 2*self.size]))
+          a[0,cnt] = 1
+          Jaccobi_H = np.row_stack((Jaccobi_H, a))
+        # 配置边测量
+        for connect_info_dict in bus_info_dict['connect']:
+          a = np.mat(np.zeros([2, 2*self.size]), dtype=complex)
+          # Substitute operation point x0 and g_ij, b_ij, bsh_ij to jacobbi matrices B_ij and B_ji
+          for i,J_i in enumerate(self.jacobi_h_ij):
+            for j,J_ij in enumerate(J_i):
+              for k,symbol_i in enumerate(self.state_i_symbol):
+                J_ij = J_ij.subs(symbol_i, x_operation[cnt+k,0])
+              for k,symbol_j in enumerate(self.state_j_symbol):
+                J_ij = J_ij.subs(symbol_j, x_operation[2*node_list.index(connect_info_dict['dst'])+k,0])
+              for k,symbol_value in enumerate(self.value_symbol):
+                J_ij = J_ij.subs(symbol_value, connect_info_dict['para'][k])
+              a[i, cnt+j] = J_ij
+          for j,J_j in enumerate(self.jacobi_h_ji):
+            for i,J_ji in enumerate(J_j):
+              for k,symbol_i in enumerate(self.state_i_symbol):
+                J_ji = J_ji.subs(symbol_i, x_operation[cnt+k,0])
+              for k,symbol_j in enumerate(self.state_j_symbol):
+                J_ji = J_ji.subs(symbol_j, x_operation[2*node_list.index(connect_info_dict['dst'])+k,0])
+              for k,symbol_value in enumerate(self.value_symbol):
+                J_ji = J_ji.subs(symbol_value, connect_info_dict['para'][k])
+              a[j, 2*node_list.index(connect_info_dict['dst'])+i] = J_ji
+          Jaccobi_H = np.row_stack((Jaccobi_H, a))  # Augment H
+        cnt += 2 # 4~9s
+    elif self.model_name == 'WSNs':
+      cnt = 0
+      for bus,bus_info_dict in self.bus_info_dict.items():
+        if bus_info_dict['attr'] == 'PMU':  # ref节点知道自己的位置
+          a = np.mat(np.zeros([2, 2*self.size]))
+          a[0,cnt] = 1
+          a[1,cnt+1] = 1
+          Jaccobi_H = np.row_stack((Jaccobi_H, a))
+        # 配置边测量
+        for connect_info_dict in bus_info_dict['connect']:
+          a = np.mat(np.zeros([len(self.h), 2*self.size]), dtype=complex)
+          for i,J_i in enumerate(self.jacobi_h_ij):
+            for j,J_ij in enumerate(J_i):
+              for k,symbol_i in enumerate(self.state_i_symbol):
+                J_ij = J_ij.subs(symbol_i, x_operation[cnt+k,0])
+              for k,symbol_j in enumerate(self.state_j_symbol):
+                J_ij = J_ij.subs(symbol_j, x_operation[2*node_list.index(connect_info_dict['dst'])+k,0])
+              a[i, cnt+j] = J_ij
+          for j,J_j in enumerate(self.jacobi_h_ji):
+            for i,J_ji in enumerate(J_j):
+              for k,symbol_i in enumerate(self.state_i_symbol):
+                J_ji = J_ji.subs(symbol_i, x_operation[cnt+k,0])
+              for k,symbol_j in enumerate(self.state_j_symbol):
+                J_ji = J_ji.subs(symbol_j, x_operation[2*node_list.index(connect_info_dict['dst'])+k,0])
+              a[j, 2*node_list.index(connect_info_dict['dst'])+i] = J_ji
+          Jaccobi_H = np.row_stack((Jaccobi_H, a))  # Augment H
+        cnt += 2 # 4~9s
+    Phi = Jaccobi_H.H * self.R_I * Jaccobi_H # 0.04s
+    return Jaccobi_H, Phi
+
+  def create_measurement(self, x_operation):
+    """
+    通过模型构造量测(虚假), 并画出非线性模型与线性模型的量测的差值.
+    """
+    h_operation = np.array((),dtype=complex)
+    node_list = list(self.bus_info_dict.keys())
+    cnt = 0
+    if self.model_name == 'PowerGrid':
+      for bus,bus_info_dict in self.bus_info_dict.items():
+        # 配置总线测量
+        if bus_info_dict['attr'] == 'PMU':
+          h_operation = np.append(h_operation, x_operation[cnt])
+          h_operation = np.append(h_operation, x_operation[cnt+1])
+        else: # SCADA
+          h_operation = np.append(h_operation, x_operation[cnt])
+        # 配置边测量
+        for connect_info_dict in bus_info_dict['connect']:
+          for z_tmp in self.h:
+            for k,symbol_i in enumerate(self.state_i_symbol):
+              z_tmp = z_tmp.subs(symbol_i, x_operation[cnt+k,0])
+            for k,symbol_j in enumerate(self.state_j_symbol):
+              z_tmp = z_tmp.subs(symbol_j, x_operation[2*node_list.index(connect_info_dict['dst'])+k,0])
+            for k,symbol_value in enumerate(self.value_symbol):
+              z_tmp = z_tmp.subs(symbol_value, connect_info_dict['para'][k])
+            h_operation = np.append(h_operation, z_tmp)
+        cnt += 2
+    elif self.model_name == 'WSNs':
+      for bus,bus_info_dict in self.bus_info_dict.items():
+        if bus_info_dict['attr'] == 'PMU':  # ref节点的位置
+          h_operation = np.append(h_operation, x_operation[cnt])
+          h_operation = np.append(h_operation, x_operation[cnt+1])
+        # 配置边测量
+        for connect_info_dict in bus_info_dict['connect']:
+          for z_tmp in self.h:
+            for k,symbol_i in enumerate(self.state_i_symbol):
+              z_tmp = z_tmp.subs(symbol_i, x_operation[cnt+k,0])
+            for k,symbol_j in enumerate(self.state_j_symbol):
+              z_tmp = z_tmp.subs(symbol_j, x_operation[2*node_list.index(connect_info_dict['dst'])+k,0])
+            h_operation = np.append(h_operation, z_tmp)
+        cnt += 2
+    h_operation = np.mat(h_operation, dtype=complex).T
+    '''
+    h_operation = self.H * x_operation # 线性模型
+    # 画出两种量测计算方法的差值
+    __z_real = self.H * self.x_real # 通过状态x_real*H得到, 真实情况是非线性的, 因此存在很大的问题.
+    plt.figure('两种量测的差值')
+    plt.plot(list(range(self.measure_size)), h_operation - __z_real, 'b.')
+    plt.show()
+    '''
+    return h_operation
+
+  def set_variance_matrix(self):
+    """
+    设置参数
+    """
+    self.R_real = np.mat(np.zeros([0, 0]), dtype=complex)   # 真实量测协方差矩阵
+    self.R = np.mat(np.zeros([0, 0]), dtype=complex)        # 计算量测协方差矩阵
+    self.R_error = np.mat(np.zeros([0, 0]), dtype=complex)  # 真实量测误差
+    for bus,bus_info_dict in self.bus_info_dict.items():
+      if self.model_name == 'PowerGrid':
+        # 配置总线测量
+        if bus_info_dict['attr'] == 'PMU':
+          self.measure_who.append([bus, bus])
+          self.R = block_diag(self.R, np.eye(1)*(self.pmu_voltage_variance**2))
+          self.R = block_diag(self.R, np.eye(1)*(self.pmu_angle_variance**2))
+          self.R_real = block_diag(self.R_real, np.eye(1)*(PMU_VOLTAGE_VARIANCE**2))
+          self.R_real = block_diag(self.R_real, np.eye(1)*(PMU_ANGLE_VARIANCE**2))
+          self.R_error = block_diag(self.R_error, np.eye(1)*(PMU_VOLTAGE_VARIANCE))
+          self.R_error = block_diag(self.R_error, np.eye(1)*(PMU_ANGLE_VARIANCE))
+        else: # SCADA
+          self.measure_who.append(bus)
+          self.R = block_diag(self.R, np.eye(1)*(self.scada_voltage_variance**2))
+          self.R_real = block_diag(self.R_real, np.eye(1)*(SCADA_VOLTAGE_VARIANCE**2))
+          self.R_error = block_diag(self.R_error, np.eye(1)*(SCADA_VOLTAGE_VARIANCE)*3) # 这个*3是干嘛的?
+        if self.bus_type[bus-1] == 3:  # if reference
+          self.nodes_ref.append(bus)
+        # 配置边测量
+        for connect_info_dict in bus_info_dict['connect']:
+          self.measure_who.append([bus, connect_info_dict['dst']])
+          self.R = block_diag(self.R, np.eye(2)*(self.scada_power_variance**2))
+          self.R_real = block_diag(self.R_real, np.eye(2)*(SCADA_POWER_VARIANCE**2))
+          self.R_error = block_diag(self.R_error, np.eye(2)*(SCADA_POWER_VARIANCE))
+      elif self.model_name == 'WSNs':
+        if bus_info_dict['attr'] == 'PMU':
+          self.measure_who.append([bus, bus])
+          self.R = block_diag(self.R, np.eye(1)*(self.pmu_voltage_variance**2))
+          self.R = block_diag(self.R, np.eye(1)*(self.pmu_voltage_variance**2))
+          self.R_real = block_diag(self.R_real, np.eye(1)*(PMU_VOLTAGE_VARIANCE**2))
+          self.R_real = block_diag(self.R_real, np.eye(1)*(PMU_VOLTAGE_VARIANCE**2))
+          self.R_error = block_diag(self.R_error, np.eye(1)*(PMU_VOLTAGE_VARIANCE))
+          self.R_error = block_diag(self.R_error, np.eye(1)*(PMU_VOLTAGE_VARIANCE))
+        if self.bus_type[bus-1] == 3:  # if reference
+          self.nodes_ref.append(bus)
+        # 配置边测量
+        for connect_info_dict in bus_info_dict['connect']:
+          self.measure_who.append([bus, connect_info_dict['dst']])
+          self.R = block_diag(self.R, np.eye(1)*(self.scada_power_variance**2))
+          self.R = block_diag(self.R, np.eye(1)*(self.pmu_angle_variance**2))
+          self.R_real = block_diag(self.R_real, np.eye(1)*(SCADA_POWER_VARIANCE**2))
+          self.R_real = block_diag(self.R_real, np.eye(1)*(PMU_ANGLE_VARIANCE**2))
+          self.R_error = block_diag(self.R_error, np.eye(1)*(SCADA_POWER_VARIANCE))
+          self.R_error = block_diag(self.R_error, np.eye(1)*(PMU_ANGLE_VARIANCE))
+    # 总结
     self.R = np.mat(self.R)
+    self.R_real = np.mat(self.R_real)
+    self.R_error = np.mat(self.R_error)
     self.R_I = self.R.I
 
-    self.measure_size = tmp_H.shape[0]
-    self.state_size = tmp_H.shape[1]
-
-    # calc measurement z
-    x = np.mat(np.zeros([self.state_size,1]))
-    cnt = 0
-    for i, j in zip(x_operation[0], x_operation[1]):
-      x[2*cnt, 0] = i
-      x[2*cnt+1, 0] = j
-      cnt+=1
-    # 真实状态
-    self.__x_real = x
-    # 加有噪声的状态
-    # self.x_observed = x + np.random.random((self.state_size,1)) * STATE_VARIENCE
-    self.__z_real = self.H * self.__x_real
-    self.z_observed = self.__z_real + self.R * np.random.random((self.measure_size,1))
-
-    self.Phi = self.H.H*self.R_I*self.H
-    
-
-  #############################################################
-  # 函数 -- 
-  #       delete_reference_bus(): 删除H矩阵中的reference总线
-  # 输入 --  
-  #       NULL
-  # 返回 --
-  #       NULL
-  #############################################################
   def delete_reference_bus(self):
-    self.H = np.delete(self.H, (self.bus_ref-1)*2, 1)
-    self.H = np.delete(self.H, (self.bus_ref-1)*2, 1)
-    self.__x_real = np.delete(self.__x_real, (self.bus_ref-1)*2, 0)
-    self.__x_real = np.delete(self.__x_real, (self.bus_ref-1)*2, 0)
-    self.z_observed = self.H * self.__x_real + self.R * np.random.random((self.measure_size,1))
+    """
+    删除H矩阵中的reference总线
+    
+    状态更改
+    -------
+    * is_reference_deleted: True
+
+    返回
+    ----
+    NULL
+    """
+    for ref_node in self.nodes_ref:
+      self.H = np.delete(self.H, (ref_node-1)*2, 1)
+      self.H = np.delete(self.H, (ref_node-1)*2, 1)
+      self.x_real = np.delete(self.x_real, (ref_node-1)*2, 0)
+      self.x_real = np.delete(self.x_real, (ref_node-1)*2, 0)
+      self.state_size -= 2
+    self.z_observed = self.H * self.x_real + self.R * np.random.random((self.measure_size,1))
     self.Phi = self.H.H*self.R_I*self.H
-    self.state_size -= 2
     self.is_reference_deleted = True
 
-  #############################################################
-  # 函数 -- 
-  #       estimator(): 最小二乘估计器
-  # 输入 -- 
-  #       * sim_time: 仿真时间(多少次)
-  #       * variance: 状态变化方差大小 (#)
-  #       * is_bad_data: 是否会产生坏数据 <False,True>
-  #       * falsedata_type: 虚假数据注入攻击的方法
-  #             |- 'normal'
-  #             |- 'pca'
-  # 返回 --
-  #       NULL
-  #############################################################
-  def estimator(self, sim_time=1, variance=STATE_VARIENCE):
-    a = self.__x_real
+  def estimator(self, once=False):
+    """
+    调用估计器
+  
+    输入
+    ---- 
+    self.sim_time: 仿真时间(多少次)，当取0时，一般是被子类调用，只进行一次估计，然后检测，其它什么都别干
+    * is_bad_data: 是否会产生坏数据 <False,True>
+    * falsedata_type: 虚假数据注入攻击的方法
+      |- 'normal'
+      |- 'pca'
+
+    返回
+    ----
+    NULL
+    """
+    a = np.copy(self.x_real)
     b = np.zeros((self.size*2,1), dtype=complex)
     state_error_mat = np.mat(np.eye(self.state_size))
-    
-    if self.is_FDI_PCA is True:
-      self.z_observed_history = np.mat(np.empty((self.measure_size,0)))
-    res = [[],[],[]]  # 估计、预测、真实
-    
-    for t in range(sim_time+1):
-      if self.is_baddata is True:
-        self.__inject_baddata(t)
-      if self.is_FDI is True:
-        self.__inject_falsedata(t)
-      elif self.is_FDI_PCA is True:
-        self.z_observed_history = np.column_stack((self.z_observed_history, self.z_observed))
-        self.__inject_falsedata_PCA(t)
+    is_bad = False
+    residual = 0.0
+    if once is True:
       self.x_est_center = self.Phi.I*self.H.H*self.R_I*self.z_observed
-      res[0].append(complex(self.x_est_center[1]))
-      if t != 0:
-        print('第%i次估计的残差为: %.3f' % (t, self.detect_baddata()))
-      if t is not sim_time:
-        a,b,state_error_mat = self.__predict([a,b,state_error_mat])
-        self.next(variance=variance)
-        res[1].append(complex(self.x_predict[1]))
-      res[2].append(complex(self.__x_real[1]))
-    plt.figure('时间图')
-    plt.plot(range(1,sim_time+1), res[0][1:], 'r*', linewidth = 0.5)
-    plt.plot(range(1,sim_time+1), res[1], 'b*', linewidth = 0.5)
-    plt.plot(range(1,sim_time+1), res[2][1:], 'y*', linewidth = 0.5)
-    plt.legend(['估计','预测','真实'], loc='upper right')
-    plt.xlabel("时刻")
-    plt.ylabel("幅值")
-    plt.show()
+      is_bad,residual = self.__detect_baddata()
+      return is_bad,residual
+    else: 
+      if self.is_FDI_PCA is True:
+        self.z_observed_history = np.mat(np.empty((self.measure_size,0)))
+      res = [[],[],[],[]]  # 估计、预测、真实
+      for t in range(self.sim_time+1):
+        if self.is_baddata is True:
+          self.__inject_baddata(t)
+        if self.is_FDI is True:
+          self.__inject_falsedata(t)
+        elif self.is_FDI_PCA is True:
+          self.z_observed_history = np.column_stack((self.z_observed_history, self.z_observed))
+          self.__inject_falsedata_PCA(t)
+        self.x_est_center = self.Phi.I*self.H.H*self.R_I*self.z_observed
+        res[0].append(complex(self.x_est_center[0]))
+        res[2].append(complex(self.x_real[0]))
+        res[3].append(np.array(self.x_est_center-self.x_real)[:,0])
+        is_bad,residual = self.__detect_baddata()
+        if is_bad is True:
+          print('第%i时刻检测到坏值，估计的残差为: %.3f' % (t, residual))
+        if t is not self.sim_time:
+          a,b,state_error_mat = self.predict(self.x_est_center,[a,b,state_error_mat])
+          self.next()
+          res[1].append(complex(self.x_predict[0]))
+      plt.figure('状态演变')
+      plt.subplot(211)
+      plt.title('某状态跟随图')
+      plt.plot(res[0], 'g*-', linewidth = 0.5)
+      plt.plot([0]+res[1], 'b*-', linewidth = 0.5)
+      plt.plot(res[2], 'y*-', linewidth = 0.5)
+      plt.legend(['估计','预测','真实'], loc='upper right')
+      plt.xlabel("时刻")
+      plt.ylabel("幅值")
+      plt.subplot(212)
+      plt.title('状态误差')
+      plt.plot(res[3], '.-', linewidth = 0.5)
+      plt.show()
 
-  #############################################################
-  # 函数 -- 
-  #       next()
-  # 输入 -- 
-  #      * diff: 状态变化量 (array)
-  #      * variance: 状态变化方差大小 (#)
-  # 功能 --
-  #      跳到下一时刻
-  # 返回 --
-  #      NULL
-  #############################################################
-  def next(self, diff=None, variance=STATE_VARIENCE):
+  def next(self, diff=None):
+    """
+    将系统更新至下一时刻
+
+    输入
+    ---- 
+    * diff: 自定义状态变化量 (array)
+
+    返回
+    ----
+    NULL
+    """
     if diff is None:
-      self.__x_real += np.random.random((self.state_size,1)) * variance
+      self.x_real += np.random.random((self.state_size,1)) * self.state_variance
     else:
-      self.__x_real += diff
-    self.z_observed = self.H * self.__x_real + self.R * np.random.random((self.measure_size,1))
+      self.x_real += diff + np.random.random((self.state_size,1)) * self.state_variance
+    #self.z_observed = self.H * self.x_real + np.random.random((self.measure_size,1))
+    self.H,self.Phi = self.jaccobi_H(self.x_est_center)
+    self.z_observed = self.create_measurement(self.x_real) + self.R_error * np.mat(np.random.random((self.measure_size,1)))
 
-  #############################################################
-  # 函数 -- 
-  #       __predict()
-  # 输入 -- 
-  #      * para_before: 上一时刻的参数
-  #      * model: 电网参数预测的模型
-  #      * para: 
-  # 功能 --
-  #      预测下一时刻的电网参数，这里以上一时刻估计值作为真实值
-  # 返回 --
-  #      NULL
-  #############################################################
-  def __predict(self, para_before=[], model=1, para=None):
+  def predict(self, est_x, para_before=[], model=1, para=None):
+    """
+    预测下一时刻的电网参数，这里以上一时刻估计值作为真实值
+
+    输入
+    ---- 
+    * est_x: 上一时刻的状态估计值
+    * para_before: 上一时刻的参数
+    * model: 电网参数预测的模型
+    * para: None - default [0.8,0.5]
+            [alpha,beta]
+    
+    返回
+    ----
+    NULL
+    """
     if model == 1:
       alpha = np.zeros((self.size*2,1), dtype=complex)
       beta = np.zeros((self.size*2,1), dtype=complex)
@@ -272,36 +424,43 @@ class LinearPowerGrid(PowerGrid):
       a = np.zeros((self.size*2,1), dtype=complex)
       b = np.zeros((self.size*2,1), dtype=complex)     
       for i in range(self.size*2):
-        a[i] = alpha[i] * self.x_est_center[i] + (1-alpha[i]) * self.__x_real[i]
+        a[i] = alpha[i] * est_x[i] + (1-alpha[i]) * self.x_real[i]
         b[i] = beta[i] * (a[i] - a_before[i]) + (1-beta[i]) * b_before[i]
       for i in range(self.size*2):
-        self.G[i] = (1+beta[i])*(1-alpha[i])*self.x_est_center[i] - beta[i]*a_before[i] + (1-beta[i])*b_before[i]
+        self.G[i] = (1+beta[i])*(1-alpha[i])*est_x[i] - beta[i]*a_before[i] + (1-beta[i])*b_before[i]
         self.A[i,i] = alpha[i]*(1+beta[i])
       # 预测下一步
-      self.x_predict = self.A * self.x_est_center + self.G
+      self.x_predict = self.A * est_x + self.G
       # 估计状态误差协方差矩阵
-      state_error_mat = self.A * state_error_mat_before * self.A.H + np.mat(np.eye(self.state_size))*STATE_VARIENCE
+      state_error_mat = self.A * state_error_mat_before * self.A.H + np.mat(np.eye(self.state_size))*self.state_variance
 
       return a,b,state_error_mat
 
-  #############################################################
-  # 函数 -- 
-  #       inject_baddata(): 注入坏值
-  # 输入 --  
-  #       * moment: 在哪个时刻产生了坏数据
-  #       * probability: 每个仪表产生坏值的概率: p/10e7
-  # 返回 --
-  #       baddata_info_dict [type: dic]
-  #                     measurement_injected: 注入的测量攻击的值(非攻击向量，)
-  #                     measurement_injected_amount: 注入了多少个测量值
-  #############################################################
   def inject_baddata(self, moment=1, probability=10):
+    """
+    注入坏值
+
+    输入
+    ----  
+    * moment: 在哪个时刻产生了坏数据
+    * probability: 每个仪表产生坏值的概率: p/10e7
+    
+    返回
+    ----
+    ---(已删)---
+    * baddata_info_dict [type: dic]
+    * measurement_injected: 注入的测量攻击的值(非攻击向量，)
+    * measurement_injected_amount: 注入了多少个测量值
+    """
     self.is_baddata = True
     self.time_baddata = moment
     if probability<100 and probability>0:
       self.baddata_prob = probability
     else:
       raise ValueError('probability 只能设置为 0-100!')  
+
+  def API_inject_baddata(self, t):
+    self.__inject_baddata(t)
 
   def __inject_baddata(self, t):
     if self.time_baddata <= t:
@@ -314,7 +473,7 @@ class LinearPowerGrid(PowerGrid):
         np.random.shuffle(measure_tobe_injected)
         measure_tobe_injected = np.mat(measure_tobe_injected).T
         self.z_observed += measure_tobe_injected
-        print('产生了%i个坏值!'%(sparse_amount))
+        print('第%i时刻产生了%i个坏值!'%(t,sparse_amount))
       ## 看往哪些测量注入了坏值，暂时用不上，但是保留
       '''
       cnt = 0
@@ -330,30 +489,49 @@ class LinearPowerGrid(PowerGrid):
           cnt += 1
       '''
 
-
-  #############################################################
-  # 函数 -- 
-  #       inject_falsedata(): 注入虚假数据
-  #           该方法在指定状态后，以尽可能少地篡改测量仪表达成攻击目标（还未实现）
-  #           现在仅仅是随意攻击
-  # 输入 --  
-  #     * dest_state_index: 欲攻击的状态下标 (type:[])
-  # 返回 --
-  #     * falsedata_info_dict [type:dic]
-  #                     攻击向量的特性 - state_injected: 注入的状态攻击向量
-  #                                  - measurement_injected: 注入的测量攻击向量
-  #                                  - state_injected_amount: 注入了多少个状态值
-  #                                  - measurement_injected_amount: 注入了多少个测量值
-  #############################################################
-  def inject_falsedata(self, moment=1):
+  def inject_falsedata(self, moment=1, conf_dic=None):
+    """
+    注入虚假数据
+      该方法在指定状态后，以尽可能少地篡改测量仪表达成攻击目标（还未实现）
+      现在仅仅是随意攻击
+  
+    输入
+    ----  
+    * moment: 攻击开始的时间
+    * conf_dic: 攻击的配置 {字典}
+      |- which_state
+      |- effect
+  
+    返回
+    ----
+    * falsedata_info_dict [type:dic]
+      攻击向量的特性 - state_injected: 注入的状态攻击向量
+                    - measurement_injected: 注入的测量攻击向量
+                    - state_injected_amount: 注入了多少个状态值
+                    - measurement_injected_amount: 注入了多少个测量值
+    """
     self.is_FDI = True
     self.time_falsedata = moment
+    self.conf_dic = conf_dic
+
+  def API_inject_falsedata(self, t):
+    self.__inject_falsedata(t)
 
   def __inject_falsedata(self, t):
     if self.time_falsedata <= t:
-      sparse_amount = random.randint(1,10)  # 产生对 1-10 个状态的幅值 0-100 的虚假数据攻击
-      state_tobe_injected = np.c_[np.random.random((1,sparse_amount)), np.zeros((1,self.state_size-sparse_amount))][0] * 100
-      np.random.shuffle(state_tobe_injected)
+      state_tobe_injected = np.zeros((1,self.state_size))
+      if self.conf_dic is None:
+        sparse_amount = random.randint(1,10)  # 产生对 1-10 个状态的幅值 0-100 的虚假数据攻击
+        state_tobe_injected = np.c_[np.random.random((1,sparse_amount)), np.zeros((1,self.state_size-sparse_amount))][0] * 100
+        np.random.shuffle(state_tobe_injected)
+        print('第%i时刻对%i个状态注入了虚假数据'%(t,sparse_amount))#后，更改了'+str(nonzero_cnt)+'个测量值.'%(t,sparse_amount,nonzero_cnt))
+      else:
+        if self.is_distribute is True:
+          for i,j in zip(self.conf_dic['which_state'], self.conf_dic['effect']):
+            state_tobe_injected[0,(np.array(range(self.state_size))*self.col_reorder_matrix)[i]] = j
+        else:
+          for i,j in zip(self.conf_dic['which_state'], self.conf_dic['effect']):
+            state_tobe_injected[0,i] = j
       measure_tobe_injected = self.H * np.mat(state_tobe_injected).T
       self.z_observed += measure_tobe_injected
       # 看哪些状态和测量被攻击了，暂时保留
@@ -373,24 +551,28 @@ class LinearPowerGrid(PowerGrid):
           nonzero_cnt += 1
         cnt += 1
       '''
-      # print('对'+str(sparse_amount)+'个状态注入虚假数据')#后，更改了'+str(nonzero_cnt)+'个测量值.')
 
-  #############################################################
-  # 函数 -- 
-  #       inject_falsedata_PCA()
-  #                     利用量测信息构造虚假数据并注入(!并未成功)
-  # 输入 --  
-  #     * moment: 什么时刻开始注入攻击
-  # 返回 --
-  #     * falsedata_info_dict [type:dic]
-  #                     攻击向量的特性 - state_injected: 注入的状态攻击向量
-  #                                  - measurement_injected: 注入的测量攻击向量
-  #                                  - state_injected_amount: 注入了多少个状态值
-  #                                  - measurement_injected_amount: 注入了多少个测量值
-  #############################################################
   def inject_falsedata_PCA(self, moment=1):
+    """
+    利用量测信息构造虚假数据并注入(!并未成功)
+  
+    输入
+    ----  
+    * moment: 什么时刻开始注入攻击
+  
+    返回 
+    ----
+    * falsedata_info_dict [type:dic]
+    攻击向量的特性 - state_injected: 注入的状态攻击向量
+                - measurement_injected: 注入的测量攻击向量
+                - state_injected_amount: 注入了多少个状态值
+                - measurement_injected_amount: 注入了多少个测量值
+    """
     self.is_FDI_PCA = True
     self.time_falsedata = moment
+
+  def API_inject_falsedata_PCA(self, t):
+    self.__inject_falsedata_PCA(t)
 
   def __inject_falsedata_PCA(self, t):
     if self.time_falsedata <= t:
@@ -435,17 +617,22 @@ class LinearPowerGrid(PowerGrid):
             nonzero_cnt += 1
           cnt += 1
       '''
-      # print('对'+str(sparse_amount)+'个状态注入虚假数据')
+      print('对'+str(sparse_amount)+'个状态注入虚假数据')
 
-  #############################################################
-  # 函数 -- 
-  #       detect_baddata()
-  #                     利用量测信息构造虚假数据并注入(!并未成功，得获得多个时刻的数据)
-  # 输入 --  
-  #     NULL
-  # 返回 --
-  #     测量误差的二范数(float)
-  #############################################################
-  def detect_baddata(self):
+  def __detect_baddata(self):
+    """
+    坏值检测(线性集中系统)
+  
+    输入 
+    ----  
+    NULL
+  
+    返回 
+    ----
+    * 测量误差的二范数(float)
+    """
+    is_bad = False
     detect_res = np.sqrt((self.z_observed - self.H * self.x_est_center).T * (self.z_observed - self.H * self.x_est_center))[0,0]
-    return float(detect_res)
+    if detect_res > self.chi2square_val(self.measure_size,0.5):
+      is_bad = True
+    return is_bad,float(detect_res)

@@ -1,0 +1,6 @@
+# 1-int 2-float 3-character 9-end-flag
+SEPARATOR 2
+rcv_node_number 1
+send_node_number 1
+distance 2
+-999 9

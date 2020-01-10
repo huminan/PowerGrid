@@ -1,4 +1,8 @@
 /save
+/__pycache__
 */__pycache__
 /.history
 /.vscode
+config.json
+Introduction
+

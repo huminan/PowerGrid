@@ -1,0 +1,7 @@
+# 1-int 2-float 3-character 9-end-flag
+SEPARATOR 2
+node_number 1
+location_x   2
+location_y   2
+is_ref 1
+-999 9

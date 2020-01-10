@@ -1,0 +1,15 @@
+# 08/25/93 UW ARCHIVE           100.0  1961 W IEEE 118 Bus Test Case
+#BUS DATA FOLLOWS                            57 ITEMS
+   1  7.000  7.000  3
+   2  0.000  0.000  0
+   3  3.250  0.467  0
+   4  2.180  3.130  0
+-999
+#BRANCH DATA FOLLOWS                         80 ITEMS
+   2    3   3.2647
+   2    4   6.7984
+   3    1   7.0767
+   3    4   6.3922
+   4    1   4.5749
+-999
+END OF DATA
