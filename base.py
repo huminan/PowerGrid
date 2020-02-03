@@ -1,4 +1,4 @@
-# coding=utf-8
+#-*- coding: utf-8 -*-
 import numpy as np
 #import scipy as sp
 import sympy as sb
@@ -31,8 +31,8 @@ def as_complex(dct):
 
 #************************************************************
 #* StateEstimationBase 类 -- 
-#*       电网基类，初始化电网参数
-#*       暂时只有线性直流模型的参数
+#*       基类，初始化系统参数
+#*       暂时只有线性直流电网模型的参数
 #*
 #************************************************************
 class StateEstimationBase(object):

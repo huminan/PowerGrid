@@ -3,7 +3,7 @@ from decentralized.estimators import Richardson,Stocastic
 
 import numpy as np
 import matplotlib.pyplot as plt
-#plt.rcParams['font.sans-serif'] = ['SimHei']  # 正常显示中文
+#plt.rcParams['font.sans-serif'] = ['SimHei']  # linux正常显示中文
 plt.rcParams['axes.unicode_minus'] = False  # 正常显示负号
 import matplotlib.pylab as pylab
 from scipy.linalg import block_diag
@@ -60,6 +60,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
       'is_async': is_async,
       'is_finite': is_finite,
       'diff_limit': diff_limit,
+      'attacked_nodes': None,
     }
     self.is_plot = conf_dict['is_plot']
 
@@ -73,7 +74,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
     for cluster,cluster_info_dict in self.cluster_info_dict.items():
       Jaccobi_H = np.mat(np.zeros([0, 2*self.size]), dtype=complex)   # 量测矩阵
       for bus in cluster_info_dict['cluster']:
-        if self.bus_info_dict[bus]['attr'] is 'PMU':
+        if self.bus_info_dict[bus]['attr'] == 'PMU':
           a = np.mat(np.zeros([2, 2*self.size]))
           a[0,cnt] = 1
           a[1,cnt+1] = 1
@@ -174,7 +175,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
           # 不知道怎么写
           ##
           bus_connection_reorder[node] = self.bus_info_dict[node]
-          if bus_connection_reorder[node]['attr'] is 'PMU':
+          if bus_connection_reorder[node]['attr'] == 'PMU':
             row_amount += 2
           else:
             row_amount += 1
@@ -304,6 +305,15 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
     ----
       NULL
     """
+    # 哪些节点遭受攻击
+    self.attacked_nodes = []
+    for i in self.conf_dic['which_state']:
+      for nodenum,nodedict in self.cluster_info_dict.items():
+        if i/2 in nodedict['cluster']:
+          self.attacked_nodes.append(nodenum)
+    self.attacked_nodes = list(set(self.attacked_nodes)) #去重复
+    self.attacked_nodes.sort() #排序
+    self.estimator_conf_dict['attacked_nodes'] = self.attacked_nodes
     # 初始化分布式估计器
     if self.decentralized_method == 'Richardson' or self.decentralized_method == 'Richardson(finite)':
       child_estimator = Richardson(self.cluster_info_dict, self.neighbors_dict, self.x_real, self.x_est_center, self.estimator_conf_dict)
@@ -473,12 +483,13 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
   
     输入
     ----  
-      t: 什么时候开始注入
+      t: 仿真的当前时刻
   
     返回
     ---- 
       None
     """
+    # 攻击是否开始
     if self.time_falsedata <= t:
       self.API_inject_falsedata(t)
       # 注入后更新z_distribute
@@ -495,7 +506,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
  
     输入
     ----  
-      t: 什么时候开始注入
+      t: 仿真的当前时刻
   
     返回
     ---- 
@@ -516,7 +527,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
   
     输入
     ----  
-      t: 什么时候开始注入
+      t: 仿真的当前时刻
   
     返回
     ---- 

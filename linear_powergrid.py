@@ -1,3 +1,4 @@
+#-*- coding: utf-8 -*-
 from base import StateEstimationBase
 import numpy as np
 import random
@@ -117,7 +118,7 @@ class LinearPowerGrid(StateEstimationBase):
       # 配置总线测量
       cnt = 0
       for bus,bus_info_dict in self.bus_info_dict.items():
-        if bus_info_dict['attr'] is 'PMU':
+        if bus_info_dict['attr'] == 'PMU':
           a = np.mat(np.zeros([2, 2*self.size]))
           a[0,cnt] = 1
           a[1,cnt+1] = 1
@@ -221,9 +222,9 @@ class LinearPowerGrid(StateEstimationBase):
             h_operation = np.append(h_operation, z_tmp)
         cnt += 2
     h_operation = np.mat(h_operation, dtype=complex).T
-    '''
+    
     h_operation = self.H * x_operation # 线性模型
-    # 画出两种量测计算方法的差值
+    ''' 画出两种量测计算方法的差值
     __z_real = self.H * self.x_real # 通过状态x_real*H得到, 真实情况是非线性的, 因此存在很大的问题.
     plt.figure('两种量测的差值')
     plt.plot(list(range(self.measure_size)), h_operation - __z_real, 'b.')
@@ -528,11 +529,11 @@ class LinearPowerGrid(StateEstimationBase):
       else:
         if self.is_distribute is True:
           for i,j in zip(self.conf_dic['which_state'], self.conf_dic['effect']):
-            state_tobe_injected[0,(np.array(range(self.state_size))*self.col_reorder_matrix)[i]] = j
+            state_tobe_injected[0,int((np.array(range(self.state_size))*self.col_reorder_matrix)[0,i])] = j
         else:
           for i,j in zip(self.conf_dic['which_state'], self.conf_dic['effect']):
             state_tobe_injected[0,i] = j
-      measure_tobe_injected = self.H * np.mat(state_tobe_injected).T
+      measure_tobe_injected = (self.H + np.multiply(self.H, np.random.rand(self.measure_size,self.state_size)*0.05)) * np.mat(state_tobe_injected).T
       self.z_observed += measure_tobe_injected
       # 看哪些状态和测量被攻击了，暂时保留
       '''

@@ -6,7 +6,7 @@ import threading
 from tqdm import tqdm
 import queue
 import matplotlib.pyplot as plt
-#plt.rcParams['font.sans-serif'] = ['SimHei']  # 正常显示中文
+#plt.rcParams['font.sans-serif'] = ['SimHei']  # linux正常显示中文
 plt.rcParams['axes.unicode_minus'] = False  # 正常显示负号
 import matplotlib.pylab as pylab
  
@@ -33,6 +33,7 @@ class Richardson:
     self.is_finite_time = conf_dict['is_finite']
     self.main_period = conf_dict['main_period']
     self.gamma_period = conf_dict['gamma_period']
+    self.attacked_nodes = conf_dict['attacked_nodes']
     # 计算
     self.nodes_num = len(cluster_info_dict)
     self.state_size = self.x_real.shape[0]
@@ -139,13 +140,12 @@ class Richardson:
           plt.plot(self.gamma_max_record[i] ,'b--', linewidth = 0.5)
           plt.plot(self.gamma_min_record[i] ,'r', linewidth = 0.5)
         plt.show()
-
       # 分布式估计过程
       plt.figure('分布式估计过程')
       # 电压
       plt.subplot(211)
       plt.title('电压估计')
-      for i in range(self.nodes_num):
+      for i in self.attacked_nodes: # 只画受攻击节点的状态估计图像
         for j in range(0, self.cluster_info_dict[i]['col_amount'], 2):
           plt.plot(self.record[i][j,:].T, 'b', linewidth = 0.5)
       plt.legend([u'电压'], loc='upper right')
@@ -154,7 +154,7 @@ class Richardson:
       # 电压相角
       plt.subplot(212)
       plt.title('电压相角估计')
-      for i in range(self.nodes_num):
+      for i in self.attacked_nodes:
         for j in range(1, self.cluster_info_dict[i]['col_amount'], 2):
           plt.plot(self.record[i][j,:].T, 'r', linewidth = 0.5)
       plt.legend([u'电压相角'], loc='upper right')

@@ -463,6 +463,7 @@ class Window(object):
     with open('config.json','w',encoding='utf-8') as f:
       f.write(json.dumps(conf_dict,ensure_ascii=False))
     # 开始跑仿真
+    false_dic = {'which_state':[10,28,50,100,200,17,75,91,125,171],'effect':[5,4.5,4,3.5,3,30,30,30,30,30]} #自定义FDI
     if conf_dict['is_centralized'] is True:
       if conf_dict['is_linear'] is True:
         model = LinearPowerGrid(PMU, conf_dict)
@@ -471,6 +472,7 @@ class Window(object):
     else:
       if conf_dict['is_linear'] is True:
         model = DistributedLinearPowerGrid(nodes, PMU, conf_dict)
+        model.inject_falsedata(moment=0,conf_dic=false_dic)  # 在1时刻注入虚假数据
       else:
         model = DistributedNonLinearPowerGrid(nodes, PMU, conf_dict)
     model.estimator()
