@@ -3,8 +3,6 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-#plt.rcParams['font.sans-serif'] = ['SimHei']  # 正常显示中文
-plt.rcParams['axes.unicode_minus'] = False  # 正常显示负号
 import matplotlib.pylab as pylab
 
 class NonLinearPowerGrid(LinearPowerGrid):
@@ -69,13 +67,13 @@ class NonLinearPowerGrid(LinearPowerGrid):
       plt.figure('状态演变')
       plt.subplot(211)
       plt.title('第10状态跟随图')
-      plt.plot(res[0], 'g*-', linewidth = 0.5)
-      plt.plot([0]+res[1], 'b*-', linewidth = 0.5)
-      plt.plot(res[2], 'y*-', linewidth = 0.5)
-      plt.legend(['估计','预测','真实'], loc='upper right')
+      plt.plot(res[0], 'g*-')
+      plt.plot([0]+res[1], 'b*-')
+      plt.plot(res[2], 'y*-')
+      plt.legend(['估计','预测','真实'], loc='upper right', frameon=False)
       plt.xlabel("时刻")
       plt.ylabel("幅值")
       plt.subplot(212)
       plt.title('状态误差')
-      plt.plot(res[3], '.-', linewidth = 0.5)
+      plt.plot(res[3], '.-')
       plt.show()

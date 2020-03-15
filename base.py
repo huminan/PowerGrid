@@ -3,9 +3,16 @@ import numpy as np
 #import scipy as sp
 import sympy as sb
 import matplotlib.pyplot as plt
-#plt.rcParams['font.sans-serif'] = ['SimHei']  # 正常显示中文
-plt.rcParams['axes.unicode_minus'] = False  # 正常显示负号
 import matplotlib.pylab as pylab
+plt.rcParams['font.sans-serif'] = ['SimSun']  # 正常显示中文
+plt.rcParams['axes.unicode_minus'] = False  # 正常显示负号
+plt.rcParams['figure.figsize'] = (2.36, 1.75) # 图片大小(英寸)(保证坐标框架为46*30mm:宽2.36->2.42)
+plt.rcParams['lines.linewidth'] = 0.75  # 线条宽度0.25mm（0.75pt）
+plt.rcParams['lines.markersize'] = 2.5
+plt.rcParams['font.size'] = 8.7 # 字体大小8.7pt（换算px）
+plt.rcParams['xtick.direction'] = 'in'  # 坐标轴刻度朝内
+plt.rcParams['ytick.direction'] = 'in'
+
 from numpy import linalg
 from scipy.linalg import block_diag
 from sklearn.decomposition import PCA

@@ -53,7 +53,7 @@ class Window(object):
   def __init__(self):
     self.wind_main = tk.Tk()
     self.wind_main.title('状态估计系统仿真')
-    # 定义变量
+    # 定义变量（默认值）
     self.networkSizeVal = tk.StringVar()  # 网络大小
     self.isCentralizedVal = tk.BooleanVar()
     self.isLinearVal = tk.BooleanVar()
@@ -82,7 +82,7 @@ class Window(object):
     self.nonLinearStopVal.set('5')
     self.mainPeriodVal.set('150')
     self.childPeriodVal.set('100')
-    self.isAsynchronizeVal.set(True)
+    self.isAsynchronizeVal.set(False)
     self.asynToleranceDiffVal.set('15')
     self.simTimeVal.set('4')
     self.stateChangeVal.set('0.3')
@@ -93,6 +93,7 @@ class Window(object):
     self.isPlotVal.set(True)
     self.decentralizedMethodVal.set('Richardson')
     self.modelVal.set('PowerGrid')
+    self.windowSize = [300,450] # 窗口默认大小
     # 读取配置文件
     if os.path.exists('config.json') is True:
       with open('config.json','r',encoding='utf-8') as f:
@@ -119,6 +120,7 @@ class Window(object):
         self.modelVal.set(self.conf_dict['model_name'])
         # GUI自用变量(以后应该从conf_dict剔除)
         self.network_size_list = self.conf_dict['network_size_list']
+        self.windowSize = self.conf_dict['window_size']
 
     ''' 菜单 '''
     menu_dict = {'Files':['Export']} # 菜单项目
@@ -298,8 +300,8 @@ class Window(object):
     confirm_button = tk.Button(self.wind_main, text='Confirm', padx=10, pady=5, command=self.confirm)
     confirm_button.grid(row=11,column=0,columnspan=3,pady=20,sticky=tk.W+tk.E)
     '''窗口大小'''
-    width=300
-    height=450
+    width=self.windowSize[0]
+    height=self.windowSize[1]
     screenwidth = self.wind_main.winfo_screenwidth()  
     screenheight = self.wind_main.winfo_screenheight()
     alignstr = '%dx%d+%d+%d' % (width, height, (screenwidth-width)/2, (screenheight-height)/2)
@@ -408,9 +410,9 @@ class Window(object):
 
   '''
   def plot_button(self):
-    """
-    画图配置
-    """
+  """
+  画图配置
+  """
     wind_plot = tk.Toplevel(self.wind_main)
     wind_plot.title('画图配置')
     self.isPlotVal = tk.BooleanVar() # 是否每次迭代过程都画(针对分布式线性)
@@ -432,9 +434,13 @@ class Window(object):
   '''
 
   def confirm(self):
-    '''
-    开始仿真
-    '''
+    """
+    仿真按钮触发事件
+    """
+    # 记录当前窗口大小
+    self.windowSize[0]=self.wind_main.winfo_width()
+    self.windowSize[1]=self.wind_main.winfo_height()
+    # 记录当前配置
     conf_dict = {
       'network_size': self.networkSizeVal.get(),
       'is_centralized': self.isCentralizedVal.get(),
@@ -458,6 +464,7 @@ class Window(object):
       'model_name': self.modelVal.get(),
       # GUI自用变量
       'network_size_list': self.network_size_list,
+      'window_size': self.windowSize,
     }
     # 保存当前配置
     with open('config.json','w',encoding='utf-8') as f:

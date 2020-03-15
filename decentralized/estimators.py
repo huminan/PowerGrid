@@ -6,8 +6,6 @@ import threading
 from tqdm import tqdm
 import queue
 import matplotlib.pyplot as plt
-#plt.rcParams['font.sans-serif'] = ['SimHei']  # linux正常显示中文
-plt.rcParams['axes.unicode_minus'] = False  # 正常显示负号
 import matplotlib.pylab as pylab
  
 DEFAULT_DIFF_LIMIT = 20   
@@ -137,8 +135,8 @@ class Richardson:
       if self.is_finite_time is False:
         plt.figure('Gamma最大最小特征值')
         for i in range(self.nodes_num):
-          plt.plot(self.gamma_max_record[i] ,'b--', linewidth = 0.5)
-          plt.plot(self.gamma_min_record[i] ,'r', linewidth = 0.5)
+          plt.plot(self.gamma_max_record[i] ,'b--')
+          plt.plot(self.gamma_min_record[i] ,'r')
         plt.show()
       # 分布式估计过程
       plt.figure('分布式估计过程')
@@ -147,8 +145,9 @@ class Richardson:
       plt.title('电压估计')
       for i in self.attacked_nodes: # 只画受攻击节点的状态估计图像
         for j in range(0, self.cluster_info_dict[i]['col_amount'], 2):
-          plt.plot(self.record[i][j,:].T, 'b', linewidth = 0.5)
-      plt.legend([u'电压'], loc='upper right')
+          plt.plot(self.record[i][j,:].T, 'b')
+      plt.legend([u'电压'], loc='upper right', frameon=False)
+      plt.axis([0,120,-7.5,12.5])
       plt.xlabel("迭代次数")
       plt.ylabel("幅值")
       # 电压相角
@@ -156,8 +155,9 @@ class Richardson:
       plt.title('电压相角估计')
       for i in self.attacked_nodes:
         for j in range(1, self.cluster_info_dict[i]['col_amount'], 2):
-          plt.plot(self.record[i][j,:].T, 'r', linewidth = 0.5)
-      plt.legend([u'电压相角'], loc='upper right')
+          plt.plot(self.record[i][j,:].T, 'r')
+      plt.legend([u'电压相角'], loc='upper right', frameon=False)
+      plt.axis([0,120,0,65])
       plt.xlabel("迭代次数")
       plt.ylabel("幅值")
       plt.show()
@@ -795,32 +795,6 @@ class Stocastic:
       n.join()
     
     self.x_est_distribute = self.x_est_distribute_lists[0] # ....
-    # 画出估计结果
-    if is_plot is True:
-      plt.figure('分布式估计（电压）')
-      for j in range(0, self.state_size, 2):
-        plt.plot(self.record[1][j,:].T, 'b', linewidth = 0.5) # 仅画出节点0的状态估计误差曲线
-      plt.legend([u'电压'], loc='upper right')
-      plt.xlabel("迭代次数")
-      plt.ylabel("幅值")
-      plt.show()
-
-      plt.figure('相角误差的误差曲线')
-      for j in range(1, self.state_size-1, 2):
-        plt.plot(self.record[1][j,:].T - self.record[1][self.state_size-1,:].T - (self.x_real[j]-self.x_real[self.state_size-1]), 'r', linewidth = 0.5) # 仅画出节点0的状态估计误差曲线
-      plt.legend([u'电压相角'], loc='upper right')
-      plt.xlabel("迭代次数")
-      plt.ylabel("幅值")
-      plt.show()
-
-      ### 估计状态误差(\bar{x}-x)
-      plt.figure('状态估计误差')
-      tmp_x = range(self.state_size)
-      plt.plot(tmp_x, self.record[0][:,-1] - self.x_real, 'b.') # 点图
-      #plt.bar(np.arange(len(self.x_real_list[i]))+1, (self.record[i][:,-1] - self.x_real_list[i]).T, lw=1)  # 条形图
-      plt.xlabel("状态")
-      plt.ylabel("误差")
-      plt.show()
 
     return self.x_est_distribute_lists,self.x_est_distribute
 

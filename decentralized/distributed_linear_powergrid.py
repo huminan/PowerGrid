@@ -3,8 +3,6 @@ from decentralized.estimators import Richardson,Stocastic
 
 import numpy as np
 import matplotlib.pyplot as plt
-#plt.rcParams['font.sans-serif'] = ['SimHei']  # linux正常显示中文
-plt.rcParams['axes.unicode_minus'] = False  # 正常显示负号
 import matplotlib.pylab as pylab
 from scipy.linalg import block_diag
 import copy
@@ -355,6 +353,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
         plt.subplot(211)
         plt.title('与全局估计相比')
         plt.plot(range(self.state_size), self.x_est_distribute - self.x_est_center, 'b.') # 点图
+        plt.axis([0,236,-2,35])
         plt.xlabel("状态")
         plt.ylabel("误差")
         # 与真实状态相比
@@ -362,6 +361,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
         tmp_cnt=0
         plt.title('与真实状态相比')
         plt.plot(range(self.state_size), self.x_est_distribute - self.x_real, 'b.') # 点图
+        plt.axis([0,236,-2,35])
         plt.xlabel("状态")
         plt.ylabel("误差")
         plt.show()
@@ -371,6 +371,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
         plt.subplot(211)
         plt.title('与全局估计相比')
         plt.plot(range(self.state_size), self.col_reorder_matrix.T * (self.x_est_distribute - self.x_est_center), 'b.') # 点图
+        plt.axis([0,236,-2,35])
         plt.xlabel("状态")
         plt.ylabel("误差")
         # 与真实状态相比
@@ -378,6 +379,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
         tmp_cnt=0
         plt.title('与真实状态相比')
         plt.plot(range(self.state_size), self.col_reorder_matrix.T * (self.x_est_distribute - self.x_real), 'b.') # 点图
+        plt.axis([0,236,-2,35])
         plt.xlabel("状态")
         plt.ylabel("误差")
         plt.show()
@@ -455,15 +457,15 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
     plt.figure('非线性算法各仿真时刻状态估计结果')
     plt.subplot(211)
     plt.title(str(choosen_state) + '状态细节图')
-    plt.plot(x_single_axis, est_res['state_est'][choosen_state,:].T, 'g*-', linewidth = 0.5)
-    plt.plot(x_single_axis, est_res['state_predict'][choosen_state,:-1].T, 'b*-', linewidth = 0.5)
-    plt.plot(x_single_axis, est_res['state_real'][choosen_state,:].T, 'y*-', linewidth = 0.5)
-    plt.legend(['估计','预测','真实'], loc='upper right')
+    plt.plot(x_single_axis, est_res['state_est'][choosen_state,:].T, 'g*-')
+    plt.plot(x_single_axis, est_res['state_predict'][choosen_state,:-1].T)
+    plt.plot(x_single_axis, est_res['state_real'][choosen_state,:].T, 'y*-')
+    plt.legend(['估计','预测','真实'], loc='upper right', frameon=False)
     plt.xlabel("时刻")
     plt.ylabel("幅值")
     plt.subplot(212)
     plt.title('非线性算法各状态估计误差')
-    plt.plot(x_axis, est_res['state_error'].T, '.-', linewidth = 0.5)
+    plt.plot(x_axis, est_res['state_error'].T, '.-')
     plt.xlabel("时刻")
     plt.ylabel("误差")
     plt.show()
@@ -472,7 +474,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
         plt.figure(str(i)+'时刻定位结果')
         plt.plot(est_res['state_real'][0::2,i],est_res['state_real'][1::2,i], 'o')
         plt.plot(est_res['state_est'][0::2,i],est_res['state_est'][1::2,i], 'x')
-        plt.legend(['真实位置','估计位置'], loc='upper right')
+        plt.legend(['真实位置','估计位置'], loc='upper right', frameon=False)
         plt.xlabel("x")
         plt.ylabel("y")
         plt.show()
@@ -588,10 +590,10 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
         plt.figure('坏值检测')
         plt.plot(chi_list, 'r--', marker='.')
         plt.plot(detect_res_list, 'b', marker='.')
-        plt.legend(['阈值', '残差'], loc='upper right')
+        plt.legend(['阈值', '残差'], loc='upper right', frameon=False)
+        plt.axis([0,7,0,110])
         plt.xlabel("子系统号")
         plt.ylabel("幅值")
-        plt.grid(True)
         plt.show()
       return is_bad,detect_res_list
 

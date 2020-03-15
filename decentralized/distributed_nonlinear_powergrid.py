@@ -5,8 +5,6 @@ import numpy as np
 import random
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-#plt.rcParams['font.sans-serif'] = ['SimHei']  # 正常显示中文
-plt.rcParams['axes.unicode_minus'] = False  # 正常显示负号
 import matplotlib.pylab as pylab
 import copy
 import time
