@@ -488,7 +488,7 @@ class LinearPowerGrid(StateEstimationBase):
           cnt += 1
       '''
 
-  def inject_falsedata(self, moment=1, conf_dic=None):
+  def inject_falsedata(self, moment, conf_dic, mode):
     """
     注入虚假数据
       该方法在指定状态后，以尽可能少地篡改测量仪表达成攻击目标（还未实现）
@@ -500,18 +500,14 @@ class LinearPowerGrid(StateEstimationBase):
     * conf_dic: 攻击的配置 {字典}
       |- which_state
       |- effect
-  
-    返回
-    ----
-    * falsedata_info_dict [type:dic]
-      攻击向量的特性 - state_injected: 注入的状态攻击向量
-                    - measurement_injected: 注入的测量攻击向量
-                    - state_injected_amount: 注入了多少个状态值
-                    - measurement_injected_amount: 注入了多少个测量值
+    * mode: 攻击的类型
     """
-    self.is_FDI = True
+    if mode == 'general':
+      self.is_FDI = True
+    elif mode == 'PCA':
+      self.is_FDI_PCA = True
     self.time_falsedata = moment
-    self.conf_dic = conf_dic
+    self.FDI_conf_dic = conf_dic
 
   def API_inject_falsedata(self, t):
     self.__inject_falsedata(t)
@@ -519,17 +515,17 @@ class LinearPowerGrid(StateEstimationBase):
   def __inject_falsedata(self, t):
     if self.time_falsedata <= t:
       state_tobe_injected = np.zeros((1,self.state_size))
-      if self.conf_dic is None:
+      if self.FDI_conf_dic['FDI_state'] == 0: # 当没有输入时就用随机数
         sparse_amount = random.randint(1,10)  # 产生对 1-10 个状态的幅值 0-100 的虚假数据攻击
         state_tobe_injected = np.c_[np.random.random((1,sparse_amount)), np.zeros((1,self.state_size-sparse_amount))][0] * 100
         np.random.shuffle(state_tobe_injected)
         print('第%i时刻对%i个状态注入了虚假数据'%(t,sparse_amount))#后，更改了'+str(nonzero_cnt)+'个测量值.'%(t,sparse_amount,nonzero_cnt))
       else:
         if self.is_distribute is True:
-          for i,j in zip(self.conf_dic['which_state'], self.conf_dic['effect']):
+          for i,j in zip(self.FDI_conf_dic['which_state'], self.FDI_conf_dic['effect']):
             state_tobe_injected[0,int((np.array(range(self.state_size))*self.col_reorder_matrix)[0,i])] = j
         else:
-          for i,j in zip(self.conf_dic['which_state'], self.conf_dic['effect']):
+          for i,j in zip(self.FDI_conf_dic['which_state'], self.FDI_conf_dic['effect']):
             state_tobe_injected[0,i] = j
       measure_tobe_injected = (self.H + np.multiply(self.H, np.random.rand(self.measure_size,self.state_size)*0.05)) * np.mat(state_tobe_injected).T
       self.z_observed += measure_tobe_injected
@@ -551,25 +547,6 @@ class LinearPowerGrid(StateEstimationBase):
         cnt += 1
       '''
 
-  def inject_falsedata_PCA(self, moment=1):
-    """
-    利用量测信息构造虚假数据并注入(!并未成功)
-  
-    输入
-    ----  
-    * moment: 什么时刻开始注入攻击
-  
-    返回 
-    ----
-    * falsedata_info_dict [type:dic]
-    攻击向量的特性 - state_injected: 注入的状态攻击向量
-                - measurement_injected: 注入的测量攻击向量
-                - state_injected_amount: 注入了多少个状态值
-                - measurement_injected_amount: 注入了多少个测量值
-    """
-    self.is_FDI_PCA = True
-    self.time_falsedata = moment
-
   def API_inject_falsedata_PCA(self, t):
     self.__inject_falsedata_PCA(t)
 
@@ -589,9 +566,23 @@ class LinearPowerGrid(StateEstimationBase):
       H_pca = eigvec_sorted[:,:self.state_size]
 
       #H_pca = Vt[:self.state_size, :].T # shape(m,n), 取前n个特征值对应的特征向量
-      sparse_amount = random.randint(1,10)
+      '''
       state_tobe_injected = np.c_[np.ones((1,sparse_amount)), np.zeros((1,self.state_size-sparse_amount))][0] * 100
       np.random.shuffle(state_tobe_injected)
+      '''
+      state_tobe_injected = np.zeros((1,self.state_size))
+      if self.FDI_conf_dic['FDI_state'] == 0: # 当没有输入时就用随机数
+        sparse_amount = random.randint(1,10)  # 产生对 1-10 个状态的幅值 0-100 的虚假数据攻击
+        state_tobe_injected = np.c_[np.random.random((1,sparse_amount)), np.zeros((1,self.state_size-sparse_amount))][0] * 100
+        np.random.shuffle(state_tobe_injected)
+        print('第%i时刻对%i个状态注入了虚假数据'%(t,sparse_amount))#后，更改了'+str(nonzero_cnt)+'个测量值.'%(t,sparse_amount,nonzero_cnt))
+      else:
+        if self.is_distribute is True:
+          for i,j in zip(self.FDI_conf_dic['which_state'], self.FDI_conf_dic['effect']):
+            state_tobe_injected[0,int((np.array(range(self.state_size))*self.col_reorder_matrix)[0,i])] = j
+        else:
+          for i,j in zip(self.FDI_conf_dic['which_state'], self.FDI_conf_dic['effect']):
+            state_tobe_injected[0,i] = j
       measure_tobe_injected = H_pca * np.mat(state_tobe_injected).T
       self.z_observed += measure_tobe_injected
       

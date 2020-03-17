@@ -305,7 +305,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
     """
     # 哪些节点遭受攻击
     self.attacked_nodes = []
-    for i in self.conf_dic['which_state']:
+    for i in self.FDI_conf_dic['which_state']:
       for nodenum,nodedict in self.cluster_info_dict.items():
         if i/2 in nodedict['cluster']:
           self.attacked_nodes.append(nodenum)

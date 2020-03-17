@@ -12,8 +12,7 @@ This project up to now have built a DC/AC power grid simulator environment with 
 
 ## Require
 
-`pip install requirement.txt`
-
+`pip install -r requirements.txt`
 
 ## Framework need to do
 
