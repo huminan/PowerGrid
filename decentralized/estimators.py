@@ -26,28 +26,12 @@ class Richardson:
     self.x_real = x_real
     self.x_est_center = x_est_center
     # 配置
-    self.is_async = conf_dict['is_async']
-    self.diff_limit = conf_dict['diff_limit']
-    self.is_finite_time = conf_dict['is_finite']
-    self.main_period = conf_dict['main_period']
-    self.gamma_period = conf_dict['gamma_period']
-    self.attacked_nodes = conf_dict['attacked_nodes']
+    self.conf_dict = conf_dict
+    if conf_dict['is_DoS'] is True:
+      self.DoS_conf_dict = conf_dict['DoS_dict']
     # 计算
     self.nodes_num = len(cluster_info_dict)
     self.state_size = self.x_real.shape[0]
-    '''
-    class Richardson(DistributedLinearPowerGrid):
-      """
-      利用 Richardson 方法进行分布式估计
-      """
-      def __init__(self, size, conf_path, bus_rule_path, branch_rule_path, nodes = [], pmu=[]):
-        super().__init__(size=size, conf_path=conf_path, bus_rule_path=bus_rule_path, branch_rule_path=branch_rule_path, nodes=nodes, pmu=pmu)
-        self.main_period = RICHARDSON_MAIN_PERIOD  # 主程序循环次数
-        self.gamma_period = RICHARDSON_GAMMA_PERIOD # 计算Gamma特征值的循环次数
-        self.diff_limit = DEFAULT_DIFF_LIMIT    # 异步算法中每个节点能比其它节点最多快多少次计算
-        self.Precondition_distribute = {}
-        self.is_finite_time = False
-    '''
     
   def algorithm(self, H_distribute, Phi_distribute, R_I_distribute_diag, z_distribute, is_plot=False):
     """
@@ -66,8 +50,8 @@ class Richardson:
     self.R_I_distribute_diag = R_I_distribute_diag
     self.z_distribute = z_distribute
 
-    axis1 = np.mat(range(self.main_period))
-    sample = np.mat(np.empty([self.state_size, self.main_period]))
+    axis1 = np.mat(range(self.conf_dict['main_period']))
+    sample = np.mat(np.empty([self.state_size, self.conf_dict['main_period']]))
     self.x_est_distribute_lists = []
     for i in range(self.state_size):
       sample[i,:] = axis1
@@ -88,11 +72,11 @@ class Richardson:
       self.Precondition.append( queue.Queue() )
       lock_con = threading.Condition()
 
-      self.record.append(np.mat(np.empty([self.cluster_info_dict[i]['col_amount'],self.main_period]),dtype=complex))
+      self.record.append(np.mat(np.empty([self.cluster_info_dict[i]['col_amount'],self.conf_dict['main_period']]),dtype=complex))
 
       self.x_est_distribute_lists.append(np.mat(np.empty([self.cluster_info_dict[i]['col_amount'],1])))
     ## 分布式计算最大最小特征值
-    if self.is_finite_time is False:
+    if self.conf_dict['is_finite'] is False:
       self.sigma = np.empty(self.nodes_num)
       self.gamma_max_record = []
       self.gamma_min_record = []
@@ -113,10 +97,10 @@ class Richardson:
       for n in eig_thread_nodes:
         n.join()
     ## 分布式计算状态
-    if self.is_finite_time is True:  # 有限步算法
+    if self.conf_dict['is_finite'] is True:  # 有限步算法
       for i in range(self.nodes_num):
         thread_nodes.append(threading.Thread(target=self.__finite_time_estimator, args=(i, lock_con)))
-    elif self.is_async is False:           # 同步算法
+    elif self.conf_dict['is_async'] is False:           # 同步算法
       for i in range(self.nodes_num):
         thread_nodes.append(threading.Thread(target=self.__sync_estimator, args=(i, lock_con)))
     else:                            # 异步算法
@@ -132,7 +116,7 @@ class Richardson:
     self.x_est_distribute = np.vstack(self.x_est_distribute_lists)
     # 画出估计结果
     if is_plot is True:
-      if self.is_finite_time is False:
+      if self.conf_dict['is_finite'] is False:
         plt.figure('Gamma最大最小特征值')
         for i in range(self.nodes_num):
           plt.plot(self.gamma_max_record[i] ,'b--')
@@ -143,7 +127,8 @@ class Richardson:
       # 电压
       plt.subplot(211)
       plt.title('电压估计')
-      for i in self.attacked_nodes: # 只画受攻击节点的状态估计图像
+      # for i in self.conf_dict['attacked_nodes']: # 只画受攻击节点的状态估计图像
+      for i in range(self.nodes_num):
         for j in range(0, self.cluster_info_dict[i]['col_amount'], 2):
           plt.plot(self.record[i][j,:].T, 'b')
       plt.legend([u'电压'], loc='upper right', frameon=False)
@@ -153,7 +138,8 @@ class Richardson:
       # 电压相角
       plt.subplot(212)
       plt.title('电压相角估计')
-      for i in self.attacked_nodes:
+      #for i in self.conf_dict['attacked_nodes']:
+      for i in range(self.nodes_num):
         for j in range(1, self.cluster_info_dict[i]['col_amount'], 2):
           plt.plot(self.record[i][j,:].T, 'r')
       plt.legend([u'电压相角'], loc='upper right', frameon=False)
@@ -225,9 +211,9 @@ class Richardson:
         v_ij[str(i)].update({str(j):1})
     # 显示进度
     if num == 0:
-      self.pbar=tqdm(total=self.gamma_period)
+      self.pbar=tqdm(total=self.conf_dict['gamma_period'])
     # 开始迭代
-    for t in range(self.gamma_period):
+    for t in range(self.conf_dict['gamma_period']):
       # Send sigma_first to neighbors
       for i in neighbors:
         self.sigma_first[i].put([num, my_Precondition_sqrt*b_bar, yita])
@@ -309,9 +295,9 @@ class Richardson:
         v_ij[str(i)].update({str(j):1})
     # 显示进度
     if num == 0:
-      self.ppbar=tqdm(total=self.gamma_period)
+      self.ppbar=tqdm(total=self.conf_dict['gamma_period'])
     # 开始迭代
-    for t in range(self.gamma_period):
+    for t in range(self.conf_dict['gamma_period']):
       # Send sigma_first to neighbors
       for i in neighbors:
         self.sigma_first[i].put([num, my_Precondition_sqrt*b_bar, yita])
@@ -434,9 +420,9 @@ class Richardson:
     '''<<开始计算>>'''
     # 显示进度条
     if num == 0:
-      self.pbar=tqdm(total=self.main_period)
+      self.pbar=tqdm(total=self.conf_dict['main_period'])
     # 开始迭代
-    for t in range(self.main_period):
+    for t in range(self.conf_dict['main_period']):
       # Send my estmate state x to neighbors
       for i in neighbors:
         self.est_x[i].put([num, x_est])
@@ -463,7 +449,8 @@ class Richardson:
           raise Exception('Wrong come in '+str(comein[0]))
         pseudo_x = pseudo_x + comein[1]
       # Calc estimate state
-      x_est = x_est - self.sigma[num] * my_Precondition * (pseudo_x - alpha_res)
+      if not (self.conf_dict['is_DoS'] is True and (num in self.DoS_conf_dict['DoS_nodes'] and t >= self.DoS_conf_dict['DoS_start'] and t < self.DoS_conf_dict['DoS_start']+self.DoS_conf_dict['DoS_delay'])):
+        x_est = x_est - self.sigma[num] * my_Precondition * (pseudo_x - alpha_res)
 
       self.record[num][:,t] = x_est#/self.x_real_list[num] # 归一化 
 
@@ -549,16 +536,16 @@ class Richardson:
       pseudo_x[i] = np.mat(np.zeros([self.cluster_info_dict[i]['col_amount'],1]), dtype=complex)
     x_est = np.mat(np.zeros([self.cluster_info_dict[num]['col_amount'], 1]), dtype=complex)
     # 显示进度条
-    ppbar=tqdm(total=self.main_period)
+    ppbar=tqdm(total=self.conf_dict['main_period'])
     # 开始迭代
-    for t in range(self.main_period):
+    for t in range(self.conf_dict['main_period']):
       # Send my estmate state x to neighbors
       for i in neighbors:
         self.est_x[i].put([num, x_est, t])
       # Receive est_x
       wait = True
       while wait:
-        if max(recv_est_timestap.values())-t >= self.diff_limit: # 如果有节点比自己快非常多
+        if max(recv_est_timestap.values())-t >= self.conf_dict['diff_limit']: # 如果有节点比自己快非常多
           if t-min(recv_est_timestap.values()) > 0: # 如果有节点比自己慢，就等待
             pass
           else: # 自己最慢，就继续
@@ -571,7 +558,7 @@ class Richardson:
             recv_est_timestap[comein[0]] = comein[2]
             recv_x_est[comein[0]] = comein[1]
           if self.est_x[num].empty():
-            if t-min(recv_est_timestap.values()) >= self.diff_limit: # 如果有节点比自己慢很多，就等待
+            if t-min(recv_est_timestap.values()) >= self.conf_dict['diff_limit']: # 如果有节点比自己慢很多，就等待
               for i in neighbor_in_me:
                 self.pseudo_x[i].put([num, pseudo_x[i], t])
             else: 
@@ -588,7 +575,7 @@ class Richardson:
       # Receive pseudo_x
       wait = True
       while wait:
-        if max(recv_pseudo_timestap.values())-t >= self.diff_limit: # 如果有节点比自己快非常多，就别等包了
+        if max(recv_pseudo_timestap.values())-t >= self.conf_dict['diff_limit']: # 如果有节点比自己快非常多，就别等包了
           if t-min(recv_pseudo_timestap.values()) > 0: # 如果有节点比自己慢，就等待
             pass
           else: # 自己最慢，就继续
@@ -600,7 +587,7 @@ class Richardson:
           recv_pseudo_timestap[comein[0]] = comein[2]
           recv_pseudo_x[comein[0]] = comein[1]
         if self.pseudo_x[num].empty():  # 如果空了
-          if t-min(recv_pseudo_timestap.values()) >= self.diff_limit: # 如果有节点比自己慢很多，就等待
+          if t-min(recv_pseudo_timestap.values()) >= self.conf_dict['diff_limit']: # 如果有节点比自己慢很多，就等待
             for i in neighbors:
               self.est_x[i].put([num, x_est, t])
           else:
@@ -677,9 +664,9 @@ class Richardson:
       Sigma_neighbors[i] = my_Gamma
     # 显示进度条
     if num == 0:
-      self.pbar=tqdm(total=self.main_period)
+      self.pbar=tqdm(total=self.conf_dict['main_period'])
     '''<<开始计算>>'''
-    for t in range(self.main_period):
+    for t in range(self.conf_dict['main_period']):
       # 计算并发送
       for j in neighbors:
         gamma_neighbors = self.Phi_distribute[j][num] * x_neighbors[j]
@@ -740,11 +727,7 @@ class Stocastic:
     self.x_real = x_real
     self.x_est_center = x_est_center
     # 配置
-    self.is_async = conf_dict['is_async']
-    self.diff_limit = conf_dict['diff_limit']
-    self.is_finite_time = conf_dict['is_finite']
-    self.main_period = conf_dict['main_period']
-    self.gamma_period = conf_dict['gamma_period']
+    self.conf_dict = conf_dict
     # 计算
     self.nodes_num = len(cluster_info_dict)
     self.state_size = self.x_real.shape[0]
@@ -776,11 +759,11 @@ class Stocastic:
       self.est_x.append( queue.Queue() )
       lock_con = threading.Condition()
 
-      self.record.append(np.mat(np.empty([self.state_size,self.main_period])))
+      self.record.append(np.mat(np.empty([self.state_size,self.conf_dict['main_period']])))
       self.x_est_distribute_lists.append(np.mat(np.empty([self.state_size,1])))
 
     ## 分布式计算状态
-    if self.is_async is False:           # 同步算法
+    if self.conf_dict['is_async'] is False:           # 同步算法
       for i in range(self.nodes_num):
         thread_nodes.append(threading.Thread(target=self.__sync_estimator, args=(i, lock_con)))
     else:                            # 异步算法
@@ -826,9 +809,9 @@ class Stocastic:
     # print(H_.T * z_)
     # 显示进度条
     if num == 0:
-      self.pbar=tqdm(total=self.main_period)
+      self.pbar=tqdm(total=self.conf_dict['main_period'])
     # 开始迭代
-    for t in range(self.main_period):
+    for t in range(self.conf_dict['main_period']):
       # Send my estmate state x to neighbors
       for i in neighbors:
         self.est_x[i].put([num, x_est])

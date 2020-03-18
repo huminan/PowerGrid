@@ -59,7 +59,10 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
       'is_finite': is_finite,
       'diff_limit': diff_limit,
       'attacked_nodes': None,
+      'is_DoS': conf_dict['is_DoS'],
     }
+    if conf_dict['is_DoS'] is True:
+      self.estimator_conf_dict['DoS_dict'] = conf_dict['DoS_dict']
     self.is_plot = conf_dict['is_plot']
 
   def jaccobi_H_distribute(self, x_operation):
@@ -303,15 +306,18 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
     ----
       NULL
     """
-    # 哪些节点遭受攻击
-    self.attacked_nodes = []
-    for i in self.FDI_conf_dic['which_state']:
-      for nodenum,nodedict in self.cluster_info_dict.items():
-        if i/2 in nodedict['cluster']:
-          self.attacked_nodes.append(nodenum)
-    self.attacked_nodes = list(set(self.attacked_nodes)) #去重复
-    self.attacked_nodes.sort() #排序
-    self.estimator_conf_dict['attacked_nodes'] = self.attacked_nodes
+    # 哪些节点遭受FDI攻击
+    if self.is_FDI is True or self.is_FDI_PCA is True:
+      self.attacked_nodes = []
+      for i in self.FDI_conf_dic['which_state']:
+        for nodenum,nodedict in self.cluster_info_dict.items():
+          if i/2 in nodedict['cluster']:
+            self.attacked_nodes.append(nodenum)
+      self.attacked_nodes = list(set(self.attacked_nodes)) #去重复
+      self.attacked_nodes.sort() #排序
+      self.estimator_conf_dict['attacked_nodes'] = self.attacked_nodes
+    # DoS攻击配置
+
     # 初始化分布式估计器
     if self.decentralized_method == 'Richardson' or self.decentralized_method == 'Richardson(finite)':
       child_estimator = Richardson(self.cluster_info_dict, self.neighbors_dict, self.x_real, self.x_est_center, self.estimator_conf_dict)

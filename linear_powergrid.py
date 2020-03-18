@@ -31,6 +31,7 @@ class LinearPowerGrid(StateEstimationBase):
     # 提前声明
     self.row_reorder_matrix = None
     self.col_reorder_matrix = None
+    self.FDI_conf_dic = {'which_state':(),'effect':()}
     # 计算参数(R)
     self.set_variance_matrix()
     self.set_linear_model()
@@ -515,7 +516,7 @@ class LinearPowerGrid(StateEstimationBase):
   def __inject_falsedata(self, t):
     if self.time_falsedata <= t:
       state_tobe_injected = np.zeros((1,self.state_size))
-      if self.FDI_conf_dic['FDI_state'] == 0: # 当没有输入时就用随机数
+      if len(self.FDI_conf_dic['which_state']) == 0: # 当没有输入时就用随机数
         sparse_amount = random.randint(1,10)  # 产生对 1-10 个状态的幅值 0-100 的虚假数据攻击
         state_tobe_injected = np.c_[np.random.random((1,sparse_amount)), np.zeros((1,self.state_size-sparse_amount))][0] * 100
         np.random.shuffle(state_tobe_injected)

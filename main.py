@@ -132,8 +132,8 @@ class Window(object):
     self.child_period = tk.Entry(decentralized_conf_frame, state=tk.NORMAL, textvariable=self.childPeriodVal, width=5)
     child_period_label.grid(row=3,column=0,sticky=tk.E)
     self.child_period.grid(row=3,column=1)
-    self.synchronized = tk.Radiobutton(decentralized_conf_frame, text='synchronized', variable=self.isAsynchronizeVal, value=False,command=lambda:self.synchronized_select_event(synchronized=True))
-    self.asynchronized = tk.Radiobutton(decentralized_conf_frame, text='asynchronized', variable=self.isAsynchronizeVal, value=True,command=lambda:self.synchronized_select_event(synchronized=False))
+    self.synchronized = tk.Radiobutton(decentralized_conf_frame, text='synchronized', variable=self.isAsynchronizeVal, value=False,command=lambda:self.radiobutton_select_event('synchronized',True))
+    self.asynchronized = tk.Radiobutton(decentralized_conf_frame, text='asynchronized', variable=self.isAsynchronizeVal, value=True,command=lambda:self.radiobutton_select_event('synchronized',False))
     self.synchronized.grid(row=4,column=0,sticky=tk.W)
     self.asynchronized.grid(row=5,column=0,sticky=tk.W)
     tolerance_label = tk.Label(decentralized_conf_frame, text='tolerate diff')
@@ -219,9 +219,9 @@ class Window(object):
     is_plot = tk.Checkbutton(plot_frame, text='plot every time', variable=self.isPlotVal, onvalue=True, offvalue=False)
     self.is_inneriter_plot = tk.Checkbutton(plot_frame, text='plot inner iter', variable=self.isInnerIterPlotVal, onvalue=True, offvalue=False)
     self.is_outeriter_plot = tk.Checkbutton(plot_frame, text='plot outer iter', variable=self.isStateIterPlotVal, onvalue=True, offvalue=False)
-    is_plot.grid(row=1,column=0)
-    self.is_inneriter_plot.grid(row=2,column=0)
-    self.is_outeriter_plot.grid(row=3,column=0)
+    is_plot.grid(row=1,column=0,sticky=tk.W)
+    self.is_inneriter_plot.grid(row=2,column=0,sticky=tk.W)
+    self.is_outeriter_plot.grid(row=3,column=0,sticky=tk.W)
     plot_frame.grid(row=line1_cnt,column=0);line1_cnt+=1
     # 只读配置
     if self.isLinearVal.get() is True and self.isCentralizedVal is True:
@@ -231,10 +231,18 @@ class Window(object):
     '''第三列'''
     line2_frame = tk.Frame(self.wind_main)
     # FDI攻击配置
-    FDI_button = tk.Button(line2_frame, text='FDIA', padx=10, pady=5, command=self.FDI_button_surface)  # 点击进入配置界面
+    FDI_button = tk.Button(line2_frame, text='FDIA Settings', padx=10, pady=5, command=self.FDI_button_surface)  # 点击进入配置界面
+    self.checkbutton_select_event('FDIA',FDI_button)
     is_FDI = tk.Checkbutton(line2_frame, text='FDIA', variable=self.isFDIVal, onvalue=True, offvalue=False, command=lambda:self.checkbutton_select_event('FDIA',FDI_button))
     is_FDI.grid(row=0,column=0)
     FDI_button.grid(row=1,column=0,sticky=tk.W+tk.E)
+    # DoS攻击配置
+    DoS_button = tk.Button(line2_frame, text='DoS Settings', padx=10, pady=5, command=self.DoS_button_surface)  # 点击进入配置界面
+    self.checkbutton_select_event('DoS',DoS_button)
+    is_DoS = tk.Checkbutton(line2_frame, text='DoS', variable=self.isDoSVal, onvalue=True, offvalue=False, command=lambda:self.checkbutton_select_event('DoS',DoS_button))
+    is_DoS.grid(row=2,column=0)
+    DoS_button.grid(row=3,column=0,sticky=tk.W+tk.E)
+    
     line2_frame.grid(row=0,column=2,sticky=tk.N)
 
     '''确认按钮'''
@@ -271,9 +279,10 @@ class Window(object):
     self.decentralizedMethodVal = tk.StringVar()
     self.modelVal = tk.StringVar()
     self.isFDIVal = tk.BooleanVar() # 是否实施FDI攻击
+    self.isDoSVal = tk.BooleanVar() # 是否实施DoS攻击
     # 读取全局配置文件
-    if os.path.exists('config.json') is True:
-      with open('config.json','r',encoding='utf-8') as f:
+    if os.path.exists('cache/config.json') is True:
+      with open('cache/config.json','r',encoding='utf-8') as f:
         conf_dict = json.load(f)
         self.isCentralizedVal.set(conf_dict['is_centralized'])
         self.isLinearVal.set(conf_dict['is_linear'])
@@ -296,6 +305,7 @@ class Window(object):
         self.decentralizedMethodVal.set(conf_dict['decentralized_method'])
         self.modelVal.set(conf_dict['model_name'])
         self.isFDIVal.set(conf_dict['is_FDI'])
+        self.isDoSVal.set(conf_dict['is_DoS'])
         # GUI自用变量(以后应该从conf_dict剔除)
         self.network_size_list = conf_dict['network_size_list']
         self.windowSize = conf_dict['window_size']
@@ -305,6 +315,7 @@ class Window(object):
       self.isCentralizedVal.set(False)
       self.isLinearVal.set(False)
       self.isFDIVal.set(False)
+      self.isDoSVal.set(False)
       self.nonLinearIterVal.set('5')
       self.nonLinearStopVal.set('5')
       self.mainPeriodVal.set('150')
@@ -321,7 +332,7 @@ class Window(object):
       self.decentralizedMethodVal.set('Richardson')
       self.modelVal.set('PowerGrid')
       self.windowSize = [450,450] # 窗口默认大小
-    '''定义FDI变量'''
+    '''定义FDI攻击变量'''
     self.FDIStateVal = tk.StringVar()
     self.FDIInjectionVal = tk.StringVar()
     self.FDIModeVal = tk.StringVar()
@@ -332,13 +343,37 @@ class Window(object):
         self.FDIStateVal.set(FDI_conf_dict['FDI_state'])
         self.FDIInjectionVal.set(FDI_conf_dict['FDI_injection'])
         self.FDIModeVal.set(FDI_conf_dict['FDI_mode'])
-        self.FDIStartMomentVal.set(FDI_conf_dict['FDI_start_moment'])
+        self.FDIStartMomentVal.set(FDI_conf_dict['FDI_start'])
+        self.FDI_conf_dict = {
+          'FDI_start': FDI_conf_dict['FDI_start'],
+          'FDI_state': FDI_conf_dict['FDI_state'],
+          'FDI_injection': FDI_conf_dict['FDI_injection'],
+          'FDI_mode': FDI_conf_dict['FDI_mode'],
+        }
     else: # 默认配置
       self.FDIStateVal.set('')
       self.FDIInjectionVal.set('')
       self.FDIModeVal.set('general')
       self.FDIStartMomentVal.set(0)
-
+    '''定义DoS攻击变量'''
+    self.DoSStartMomentVal = tk.IntVar()
+    self.DoSNodesVal = tk.StringVar()
+    self.DoSDelayVal = tk.IntVar()
+    if os.path.exists('cache/DoS_conf.json') is True:
+      with open('cache/DoS_conf.json','r',encoding='utf-8') as f:
+        DoS_conf_dict = json.load(f)
+        self.DoSStartMomentVal.set(DoS_conf_dict['DoS_start'])
+        self.DoSNodesVal.set(DoS_conf_dict['DoS_nodes'])
+        self.DoSDelayVal.set(DoS_conf_dict['DoS_delay'])
+        self.DoS_conf_dict = {
+          'DoS_start': DoS_conf_dict['DoS_start'],
+          'DoS_nodes': DoS_conf_dict['DoS_nodes'],
+          'DoS_delay': DoS_conf_dict['DoS_delay'],
+        }
+    else: # 默认配置
+      self.DoSStartMomentVal.set(0)
+      self.DoSNodesVal.set(0)
+      self.DoSDelayVal.set(10)
   def FDI_button_surface(self):
     """
     FDI攻击配置界面
@@ -368,6 +403,7 @@ class Window(object):
     PCA_FDI.grid(row=5,column=0,columnspan=2,sticky=tk.W)
     # 保存按钮
     self.FDI_conf_dict = {
+      'FDI_start':start_moment,
       'FDI_state':which_state,
       'FDI_injection':measurement_injection,
       'FDI_mode': self.FDIModeVal.get(),
@@ -382,6 +418,43 @@ class Window(object):
     alignstr = '%dx%d+%d+%d' % (width, height, (screenwidth-width)/2, (screenheight-height)/2)
     wind_FDI.geometry(alignstr)
 
+  def DoS_button_surface(self):
+    """
+    DoS攻击配置界面
+    """
+    wind_DoS = tk.Toplevel(self.wind_main)
+    wind_DoS.title('DoS攻击配置')
+    # 开始DoS时刻
+    start_moment_lable = tk.Label(wind_DoS, text='start moment: ')
+    start_moment = tk.Entry(wind_DoS, state=tk.NORMAL, width=3, textvariable=self.DoSStartMomentVal)
+    start_moment_lable.grid(row=0,column=0, pady=10, padx=15,sticky=tk.W)
+    start_moment.grid(row=0, column=1, sticky=tk.W)
+    # 配置
+    delay_lable = tk.Label(wind_DoS, text='delay: ')
+    which_nodes_lable = tk.Label(wind_DoS, text='nodes: ')
+    delay = tk.Entry(wind_DoS, state=tk.NORMAL, textvariable=self.DoSDelayVal, width=3)
+    which_nodes = tk.Entry(wind_DoS, state=tk.NORMAL, textvariable=self.DoSNodesVal, width=15)
+    delay_lable.grid(row=1,column=0, pady=10, padx=15,sticky=tk.W)
+    which_nodes_lable.grid(row=2,column=0, pady=10, padx=15,sticky=tk.W)
+    delay.grid(row=1,column=1,sticky=tk.W)
+    which_nodes.grid(row=2,column=1,sticky=tk.W)
+    # 保存按钮
+    self.DoS_conf_dict = {
+      'DoS_start':start_moment,
+      'DoS_nodes':which_nodes,
+      'DoS_delay':delay,
+    }
+    save_button = tk.Button(wind_DoS, text='Save', padx=10, pady=5, command=lambda:self.saveconf_event('DoS', self.DoS_conf_dict))
+    save_button.grid(row=6,column=0,columnspan=2,pady=20,sticky=tk.W+tk.E)
+    # 窗口大小
+    width=260
+    height=250
+    screenwidth = wind_DoS.winfo_screenwidth()  
+    screenheight = wind_DoS.winfo_screenheight()
+    alignstr = '%dx%d+%d+%d' % (width, height, (screenwidth-width)/2, (screenheight-height)/2)
+    wind_DoS.geometry(alignstr)
+
+
   def checkbutton_select_event(self, which, param):
     """
     在checkbutton被选中时, 执行相应的操作.
@@ -393,6 +466,11 @@ class Window(object):
     """
     if which == 'FDIA':
       if self.isFDIVal.get() is True:
+        param.config(state=tk.NORMAL)
+      else:
+        param.config(state=tk.DISABLED)
+    if which == 'DoS':
+      if self.isDoSVal.get() is True:
         param.config(state=tk.NORMAL)
       else:
         param.config(state=tk.DISABLED)
@@ -460,6 +538,11 @@ class Window(object):
         if self.isCentralizedVal.get() is False:
           self.is_inneriter_plot.config(state=tk.NORMAL)
           self.is_outeriter_plot.config(state=tk.NORMAL)
+    elif which == 'synchronized':
+      if param is True:
+        self.tolerance.config(state=tk.DISABLED)
+      else:
+        self.tolerance.config(state=tk.NORMAL)
     elif which == 'FDI_mode': # 选中FDI模式
       if param == 'general':
         pass
@@ -494,12 +577,6 @@ class Window(object):
       self.child_period.config(state=tk.NORMAL)
     else:
       self.child_period.config(state=tk.DISABLED)
-
-  def synchronized_select_event(self, synchronized):
-    if synchronized is True:
-      self.tolerance.config(state=tk.DISABLED)
-    else:
-      self.tolerance.config(state=tk.NORMAL)
 
   '''
   def plot_button(self):
@@ -544,11 +621,23 @@ class Window(object):
         c = [int(i) for i in a]
         d = [float(i) for i in b]
       conf_dict = {
+        'FDI_start': self.FDIStartMomentVal.get(),
         'FDI_state': c,
         'FDI_injection': d,
         'FDI_mode': self.FDIModeVal.get()
       }
       with open('cache/FDI_conf.json','w',encoding='utf-8') as f:
+        f.write(json.dumps(conf_dict,ensure_ascii=False))
+    elif which == 'DoS':
+      a = re.split(r'[\s\,]+', self.DoSNodesVal.get())
+      if len(a) != 0:
+        b = [int(i) for i in a]
+      conf_dict = {
+        'DoS_start': self.DoSStartMomentVal.get(),
+        'DoS_nodes': b,
+        'DoS_delay': self.DoSDelayVal.get(),
+      }
+      with open('cache/DoS_conf.json','w',encoding='utf-8') as f:
         f.write(json.dumps(conf_dict,ensure_ascii=False))
 
   def confirm(self):
@@ -581,13 +670,20 @@ class Window(object):
       'is_outeriter_plot': self.isStateIterPlotVal.get(),
       'model_name': self.modelVal.get(),
       'is_FDI': self.isFDIVal.get(),
+      'is_DoS': self.isDoSVal.get(),
       # GUI自用变量
       'network_size_list': self.network_size_list,
       'window_size': self.windowSize,
     }
     # 保存当前配置
-    with open('config.json','w',encoding='utf-8') as f:
+    with open('cache/config.json','w',encoding='utf-8') as f:
       f.write(json.dumps(conf_dict,ensure_ascii=False))
+    # 添加配置
+    if self.isDoSVal.get() is True:
+      conf_dict['is_DoS'] = True
+      conf_dict['DoS_dict'] = self.DoS_conf_dict
+    else:
+      conf_dict['is_DoS'] = False
     # 开始跑仿真
     if conf_dict['is_centralized'] is True:
       if conf_dict['is_linear'] is True:
@@ -603,7 +699,7 @@ class Window(object):
     if conf_dict['is_FDI'] is True:
       # [10,28,50,100,200,17,75,91,125,171], [5,4.5,4,3.5,3,30,30,30,30,30]
       false_dic = {'which_state':self.FDI_conf_dict['FDI_state'],'effect':self.FDI_conf_dict['FDI_injection']} #自定义FDI
-      model.inject_falsedata(moment=0, conf_dic=false_dic, mode=self.FDI_conf_dict['FDI_mode'])  # 在1时刻注入虚假数据
+      model.inject_falsedata(moment=self.FDI_conf_dict['FDI_start'], conf_dic=false_dic, mode=self.FDI_conf_dict['FDI_mode'])  # 在1时刻注入虚假数据
     # 估计
     model.estimator()
 
