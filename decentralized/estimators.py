@@ -132,7 +132,7 @@ class Richardson:
         for j in range(0, self.cluster_info_dict[i]['col_amount'], 2):
           plt.plot(self.record[i][j,:].T, 'b')
       plt.legend([u'电压'], loc='upper right', frameon=False)
-      plt.axis([0,120,-7.5,12.5])
+      plt.axis([0,self.conf_dict['main_period'],-7.5,12.5])
       plt.xlabel("迭代次数")
       plt.ylabel("幅值")
       # 电压相角
@@ -143,7 +143,7 @@ class Richardson:
         for j in range(1, self.cluster_info_dict[i]['col_amount'], 2):
           plt.plot(self.record[i][j,:].T, 'r')
       plt.legend([u'电压相角'], loc='upper right', frameon=False)
-      plt.axis([0,120,0,65])
+      plt.axis([0,self.conf_dict['main_period'],0,65])
       plt.xlabel("迭代次数")
       plt.ylabel("幅值")
       plt.show()

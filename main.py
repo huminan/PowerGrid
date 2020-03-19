@@ -402,13 +402,13 @@ class Window(object):
     general_FDI.grid(row=4,column=0,columnspan=2,sticky=tk.W)
     PCA_FDI.grid(row=5,column=0,columnspan=2,sticky=tk.W)
     # 保存按钮
-    self.FDI_conf_dict = {
+    FDI_conf_dict = {
       'FDI_start':start_moment,
       'FDI_state':which_state,
       'FDI_injection':measurement_injection,
       'FDI_mode': self.FDIModeVal.get(),
     }
-    save_button = tk.Button(wind_FDI, text='Save', padx=10, pady=5, command=lambda:self.saveconf_event('FDI', self.FDI_conf_dict))
+    save_button = tk.Button(wind_FDI, text='Save', padx=10, pady=5, command=lambda:self.saveconf_event('FDI', FDI_conf_dict, wind_FDI))
     save_button.grid(row=6,column=0,columnspan=2,pady=20,sticky=tk.W+tk.E)
     # 窗口大小
     width=260
@@ -439,12 +439,12 @@ class Window(object):
     delay.grid(row=1,column=1,sticky=tk.W)
     which_nodes.grid(row=2,column=1,sticky=tk.W)
     # 保存按钮
-    self.DoS_conf_dict = {
+    DoS_conf_dict = {
       'DoS_start':start_moment,
       'DoS_nodes':which_nodes,
       'DoS_delay':delay,
     }
-    save_button = tk.Button(wind_DoS, text='Save', padx=10, pady=5, command=lambda:self.saveconf_event('DoS', self.DoS_conf_dict))
+    save_button = tk.Button(wind_DoS, text='Save', padx=10, pady=5, command=lambda:self.saveconf_event('DoS', DoS_conf_dict, wind_DoS))
     save_button.grid(row=6,column=0,columnspan=2,pady=20,sticky=tk.W+tk.E)
     # 窗口大小
     width=260
@@ -603,7 +603,7 @@ class Window(object):
     wind_plot.geometry(alignstr)
   '''
 
-  def saveconf_event(self, which, conf):
+  def saveconf_event(self, which, conf, wind):
     """
     保存配置结果
 
@@ -626,10 +626,9 @@ class Window(object):
         'FDI_injection': d,
         'FDI_mode': self.FDIModeVal.get()
       }
-      with open('cache/FDI_conf.json','w',encoding='utf-8') as f:
-        f.write(json.dumps(conf_dict,ensure_ascii=False))
+      self.FDI_conf_dict = conf_dict
     elif which == 'DoS':
-      a = re.split(r'[\s\,]+', self.DoSNodesVal.get())
+      a = re.findall(r'\d', self.DoSNodesVal.get())
       if len(a) != 0:
         b = [int(i) for i in a]
       conf_dict = {
@@ -637,8 +636,11 @@ class Window(object):
         'DoS_nodes': b,
         'DoS_delay': self.DoSDelayVal.get(),
       }
-      with open('cache/DoS_conf.json','w',encoding='utf-8') as f:
-        f.write(json.dumps(conf_dict,ensure_ascii=False))
+      self.DoS_conf_dict = conf_dict
+    with open('cache/'+ which +'_conf.json','w',encoding='utf-8') as f:
+      f.write(json.dumps(conf_dict,ensure_ascii=False))
+    tk.messagebox.showinfo('提示','保存成功')
+    wind.destroy()
 
   def confirm(self):
     """
