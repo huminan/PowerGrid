@@ -151,6 +151,9 @@ class PowerGridBase(StateEstimationBase):
         f.write(json.dumps(conf_to_save,ensure_ascii=False,cls=ComplexEncoder))
 
   def model_function(self):
+    """
+    设置量测模型，并配置相关变量和参数
+    """
     if self.model_name is 'PowerGrid':
       # 为求偏导准备的符号
       G_ij = sb.symbols("G_ij")

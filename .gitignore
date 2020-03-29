@@ -3,6 +3,6 @@
 */__pycache__
 /.history
 /.vscode
-config.json
 Introduction
+/cache/.gitignore
 

@@ -80,6 +80,7 @@ class Richardson:
       self.sigma = np.empty(self.nodes_num)
       self.gamma_max_record = []
       self.gamma_min_record = []
+      self.sigma_record = []
       self.sigma_first = []
       self.sigma_second = []
       for i in range(self.nodes_num):
@@ -87,6 +88,7 @@ class Richardson:
         self.sigma_second.append( queue.Queue() )
         self.gamma_max_record.append([])
         self.gamma_min_record.append([])
+        self.sigma_record.append([])
 
       for i in range(self.nodes_num):
         eig_thread_nodes.append(threading.Thread(target=self.__maxmin_eigenvalue, args=(i, lock_con, False)))
@@ -118,9 +120,13 @@ class Richardson:
     if is_plot is True:
       if self.conf_dict['is_finite'] is False:
         plt.figure('Gamma最大最小特征值')
+        plt.subplot(211)
         for i in range(self.nodes_num):
           plt.plot(self.gamma_max_record[i] ,'b--')
           plt.plot(self.gamma_min_record[i] ,'r')
+        plt.subplot(212)
+        for i in range(self.nodes_num):
+          plt.plot(self.sigma_record[i])
         plt.show()
       # 分布式估计过程
       plt.figure('分布式估计过程')
@@ -147,7 +153,6 @@ class Richardson:
       plt.xlabel("迭代次数")
       plt.ylabel("幅值")
       plt.show()
-    #print(self.x_est_distribute_lists)
     ''' 保存 '''
     '''
     mat_save_dict = {}
@@ -164,13 +169,13 @@ class Richardson:
   def __maxmin_eigenvalue(self, num, lock_con, is_finite_time=False):
     """
     分布式计算最大最小特征值
-    
+
     输入
     ---- 
     * num: 该节点的节点号(从0开始计)
     * lock_con: 锁（保证通信的同步）
     * is_finite_time: 是否使用有限步算法（需在非回环拓扑情况下）
-  
+
     返回
     ----
     * eig_max,eig_min
@@ -349,6 +354,7 @@ class Richardson:
       # 记录
       Gamma_min = (Gamma_max) - (1 / yita) # (Gamma_max) - 1 / yita
       self.gamma_min_record[num].append(Gamma_min)
+      self.sigma_record[num].append(2 / ( Gamma_max + Gamma_min ))
 
       lock_con.acquire()
       if self.task_lock.qsize() != self.nodes_num-1:
@@ -367,6 +373,8 @@ class Richardson:
     #print('%s-Gamma最小特征值: %.3f' % (threading.current_thread().name, Gamma_min))
     ## 计算 sigma
     sigma = 2 / ( Gamma_max + Gamma_min )
+    if num in (1):
+      sigma = sigma+0.1
     # print(threading.current_thread().name + 'sigma: ' + str(sigma))
     self.sigma[num] = sigma
 
@@ -777,7 +785,7 @@ class Stocastic:
     for n in thread_nodes:
       n.join()
     
-    self.x_est_distribute = self.x_est_distribute_lists[0] # ....
+    self.x_est_distribute = self.x_est_distribute_lists[0] # 将第0个节点的估计结果作为整体的估计结果（这是不严谨的）
 
     return self.x_est_distribute_lists,self.x_est_distribute
 

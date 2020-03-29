@@ -333,7 +333,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
     a = np.copy(self.x_real)
     b = np.zeros((self.size*2,1), dtype=complex)
     state_error_mat = np.mat(np.eye(self.state_size))
-    self.x_est_distribute = self.x_real # 第一次的配置
+    self.x_est_distribute = self.x_real # 第一次将真实状态作为上一次的估计结果（也可以使用全0向量，但是需要将next函数放在循环尾部）
     for t in range(self.sim_time):
       self.next() # 进入下一时刻
       if self.is_baddata is True:
@@ -399,6 +399,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
       res['state_real'] = np.column_stack((res['state_real'], self.x_real))
       res['state_error'] = np.column_stack((res['state_error'], np.array(self.x_est_distribute-self.x_real)))
       res['state_predict'] = np.column_stack((res['state_predict'], self.x_predict))
+      self.next() # 进入下一时刻
     # 画图
     self.plot(res)
 
