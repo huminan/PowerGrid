@@ -374,6 +374,7 @@ class Window(object):
       self.DoSStartMomentVal.set(0)
       self.DoSNodesVal.set(0)
       self.DoSDelayVal.set(10)
+
   def FDI_button_surface(self):
     """
     FDI攻击配置界面
@@ -453,7 +454,6 @@ class Window(object):
     screenheight = wind_DoS.winfo_screenheight()
     alignstr = '%dx%d+%d+%d' % (width, height, (screenwidth-width)/2, (screenheight-height)/2)
     wind_DoS.geometry(alignstr)
-
 
   def checkbutton_select_event(self, which, param):
     """

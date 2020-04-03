@@ -4,5 +4,5 @@
 /.history
 /.vscode
 Introduction
-/cache/.gitignore
+/cache/*.json
 

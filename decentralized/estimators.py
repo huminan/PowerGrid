@@ -230,9 +230,10 @@ class Richardson:
         if get[0] not in neighbors: # some are not in me
           raise Exception('Wrong come in '+str(get[0]))
       # v_ij
-      for i in neighbor_in_me:
-        for j in neighbors:
-          v_ij[str(i)][str(j)] = comein_dict[str(i)][1] / comein_dict[str(j)][1] * v_ij[str(i)][str(j)]
+      if not (self.conf_dict['is_DoS'] is True and (num in self.DoS_conf_dict['DoS_nodes'] and t >= self.DoS_conf_dict['DoS_start'] and t < self.DoS_conf_dict['DoS_start']+self.DoS_conf_dict['DoS_delay'])):
+        for i in neighbor_in_me:
+          for j in neighbors:
+            v_ij[str(i)][str(j)] = comein_dict[str(i)][1] / comein_dict[str(j)][1] * v_ij[str(i)][str(j)]
       # yita_bar_in_me
       yita_bar_in_me = []
       for i in neighbor_in_me:
@@ -253,19 +254,22 @@ class Richardson:
       for k in neighbor_in_him:
         get = self.sigma_second[num].get()
         comein_dict.update({ str(get[0]): [get[1], get[2]]})
-      # Accumulate b_hat to calc b_tilde
-      b_tilde = np.mat(np.zeros([ self.cluster_info_dict[num]['col_amount'], 1 ]), dtype=complex)
-      for k in neighbor_in_him:
-        b_tilde += comein_dict[str(k)][0]
-      b_tilde = my_Precondition_sqrt.H*b_tilde
-      # yita
-      yita_candidate = [np.linalg.norm(b_tilde, ord=2)]
-      for k in neighbor_in_him:
-        yita_candidate.append(comein_dict[str(k)][1])
-      yita = 1 / max( yita_candidate )
-      # b_bar
-      b_bar = yita * b_tilde
-
+      if not (self.conf_dict['is_DoS'] is True and (num in self.DoS_conf_dict['DoS_nodes'] and t >= self.DoS_conf_dict['DoS_start'] and t < self.DoS_conf_dict['DoS_start']+self.DoS_conf_dict['DoS_delay'])):
+        # Accumulate b_hat to calc b_tilde
+        b_tilde = np.mat(np.zeros([ self.cluster_info_dict[num]['col_amount'], 1 ]), dtype=complex)
+        for k in neighbor_in_him:
+          b_tilde += comein_dict[str(k)][0]
+        b_tilde = my_Precondition_sqrt.H*b_tilde
+        # yita
+        yita_candidate = [np.linalg.norm(b_tilde, ord=2)]
+        for k in neighbor_in_him:
+          yita_candidate.append(comein_dict[str(k)][1])
+        yita = 1 / max( yita_candidate )
+        # b_bar
+        b_bar = yita * b_tilde
+      if num in self.DoS_conf_dict['DoS_nodes'] and t == -1+self.DoS_conf_dict['DoS_start']+self.DoS_conf_dict['DoS_delay']:
+        print(yita_candidate)
+        print(v_ij)
       # 记录
       self.gamma_max_record[num].append(1/yita)
 
@@ -283,7 +287,6 @@ class Richardson:
       self.pbar.close()
     # Maximum eigenvalue of Gamma
     Gamma_max = 1 / yita
-    # print('%s-Gamma最大特征值: %.3f' % (threading.current_thread().name, Gamma_max))
     
     ## 计算Gamma的最小特征值 ##
     # 初始化
@@ -352,7 +355,7 @@ class Richardson:
       # b_bar
       b_bar = yita * b_tilde_min
       # 记录
-      Gamma_min = (Gamma_max) - (1 / yita) # (Gamma_max) - 1 / yita
+      Gamma_min = (Gamma_max) - (1 / yita)
       self.gamma_min_record[num].append(Gamma_min)
       self.sigma_record[num].append(2 / ( Gamma_max + Gamma_min ))
 
@@ -373,8 +376,8 @@ class Richardson:
     #print('%s-Gamma最小特征值: %.3f' % (threading.current_thread().name, Gamma_min))
     ## 计算 sigma
     sigma = 2 / ( Gamma_max + Gamma_min )
-    if num in (1):
-      sigma = sigma+0.1
+#    if num in [1,2]:
+#      sigma = sigma+0.1
     # print(threading.current_thread().name + 'sigma: ' + str(sigma))
     self.sigma[num] = sigma
 
