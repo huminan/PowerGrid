@@ -11,24 +11,39 @@ import json
 import re
 import os
 
-CENTRAL = False
-LINEAR = False
-
 # 不显示warnings
 import warnings
 #warnings.filterwarnings("ignore")
 #
 
-psap_conf = 'ieee118psp.txt'
-psap_rule_line = './rules/rule_ieee118psap_line'
-psap_rule_bus = './rules/rule_ieee118psap_bus'
-
-cdf_conf = 'ieee118cdf.txt'
-cdf_rule_bus = './rules/rule_ieee118cdf_bus'
-cdf_rule_branch = './rules/rule_ieee118cdf_branch'
-
+'''# 14-Bus
+#cycle
+PMU = [3,5,9,12]
+node1 = [1,2,3,4,5]
+node2 = [6,10,11,12,13,14]
+node3 = [7,8,9]
+nodes = [node1,node2,node3]
+'''
+'''# 30-Bus
+# cycle
+PMU = [3,5,9,12,15,17,21,25,28]
+node1 = [1,2,3,4,5,6,7,8,28]
+node2 = [12,13,14,15,16,18]
+node3 = [9,10,11,17,19,20,21,22,23,24]
+node4 = [25,26,27,29,30]
+nodes = [node1,node2,node3,node4]
+'''
+# 57-Bus
+PMU = [3,5,9,12,15,17,21,25,28,40,37,34]
+node1 = [4,5,6,18,19,20,21,45]
+node2 = [1,2,3,12,13,14,15,16,17,50]
+node3 = [7,8,24,25,26,27,28,29,30,31,52]
+node4 = [11,22,23,32,33,34,35,36,37,38,39,40,41,42,43,44,46,47,48,49,56,57]
+node5 = [9,10,51,53,54,55]
+nodes = [node1,node2,node3,node4,node5]
+''' # 118-Bus
+# cycle
 PMU = [3,5,9,12,15,17,21,25,114,28,40,37,34,70,71,53,56,45,49,62,64,68,105,110,76,79,100,92,96,85,86,89]
-
 node1 = [1,2,3,4,5,6,7,8,9,10,11,12,14,16,117]
 node2 = [13,15,17,18,19,20,21,22,23,25,26,27,28,29,30,31,32,33,113,114,115]
 node3 = [24,38,70,71,72,73,74]
@@ -38,6 +53,7 @@ node6 = [75,76,78,79,82,95,96,97,98,118]
 node7 = [83,84,85,86,87,88,89,90,91,92,93,94]
 node8 = [99,101,102,103,104,105,106,107,108,109,110,111,112]
 nodes = [node1,node2,node3,node4,node5,node6,node7,node8]
+'''
 '''
 # acycle
 node1 = [1,2,3,4,5,6,7,8,9,10,11,12,13,14,117]
@@ -55,7 +71,6 @@ class Window(object):
     self.wind_main = tk.Tk()
     self.wind_main.title('状态估计系统仿真')
     self.load_conf()  # 载入变量
-
     ''' 菜单 '''
     menu_dict = {'Files':['Export']} # 菜单项目
     menu_object_dict = {} # 子菜单对象字典
@@ -80,7 +95,6 @@ class Window(object):
     self.network_size.grid(row=0,column=1)
     self.network_size['values']=self.network_size_list
     self.network_size['state']='readonly'
-    self.network_size.current(0)
     tmp_frame.grid(row=line0_cnt,column=0);line0_cnt+=1
     # 选择框架(分布式/集中式)
     framework_lable = tk.Label(line0_frame, text='- select framework -')
@@ -154,7 +168,6 @@ class Window(object):
         self.tolerance.config(state=tk.DISABLED)
       if self.decentralizedMethodVal.get() != 'Richardson':
         self.child_period.config(state=tk.DISABLED)
-
     '''第二列'''
     line1_frame = tk.Frame(self.wind_main)
     # 选择模型
@@ -310,7 +323,7 @@ class Window(object):
         self.network_size_list = conf_dict['network_size_list']
         self.windowSize = conf_dict['window_size']
     else: # 默认值
-      self.network_size_list = ('118',) # 下拉栏内容
+      self.network_size_list = ('118','300','57','30','14') # 下拉栏内容
       self.networkSizeVal.set('118')
       self.isCentralizedVal.set(False)
       self.isLinearVal.set(False)
@@ -359,21 +372,29 @@ class Window(object):
     self.DoSStartMomentVal = tk.IntVar()
     self.DoSNodesVal = tk.StringVar()
     self.DoSDelayVal = tk.IntVar()
+    self.DoSIsRandomVal = tk.BooleanVar()
+    self.DoSRandomRatio = tk.IntVar()
     if os.path.exists('cache/DoS_conf.json') is True:
       with open('cache/DoS_conf.json','r',encoding='utf-8') as f:
         DoS_conf_dict = json.load(f)
         self.DoSStartMomentVal.set(DoS_conf_dict['DoS_start'])
         self.DoSNodesVal.set(DoS_conf_dict['DoS_nodes'])
         self.DoSDelayVal.set(DoS_conf_dict['DoS_delay'])
+        self.DoSIsRandomVal.set(DoS_conf_dict['DoS_is_random'])
+        self.DoSRandomRatio.set(DoS_conf_dict['DoS_random_ratio'])
         self.DoS_conf_dict = {
           'DoS_start': DoS_conf_dict['DoS_start'],
           'DoS_nodes': DoS_conf_dict['DoS_nodes'],
           'DoS_delay': DoS_conf_dict['DoS_delay'],
+          'DoS_is_random': DoS_conf_dict['DoS_is_random'],
+          'DoS_random_ratio': DoS_conf_dict['DoS_random_ratio'],
         }
     else: # 默认配置
       self.DoSStartMomentVal.set(0)
       self.DoSNodesVal.set(0)
       self.DoSDelayVal.set(10)
+      self.DoSIsRandomVal.set(False)
+      self.DoSRandomRatio.set(5)
 
   def FDI_button_surface(self):
     """
@@ -425,25 +446,43 @@ class Window(object):
     """
     wind_DoS = tk.Toplevel(self.wind_main)
     wind_DoS.title('DoS攻击配置')
+    '''第一列'''
+    col1_frame = tk.Frame(wind_DoS)
     # 开始DoS时刻
-    start_moment_lable = tk.Label(wind_DoS, text='start moment: ')
-    start_moment = tk.Entry(wind_DoS, state=tk.NORMAL, width=3, textvariable=self.DoSStartMomentVal)
+    start_moment_lable = tk.Label(col1_frame, text='start moment: ')
+    start_moment = tk.Entry(col1_frame, state=tk.NORMAL, width=3, textvariable=self.DoSStartMomentVal)
     start_moment_lable.grid(row=0,column=0, pady=10, padx=15,sticky=tk.W)
     start_moment.grid(row=0, column=1, sticky=tk.W)
     # 配置
-    delay_lable = tk.Label(wind_DoS, text='delay: ')
-    which_nodes_lable = tk.Label(wind_DoS, text='nodes: ')
-    delay = tk.Entry(wind_DoS, state=tk.NORMAL, textvariable=self.DoSDelayVal, width=3)
-    which_nodes = tk.Entry(wind_DoS, state=tk.NORMAL, textvariable=self.DoSNodesVal, width=15)
-    delay_lable.grid(row=1,column=0, pady=10, padx=15,sticky=tk.W)
-    which_nodes_lable.grid(row=2,column=0, pady=10, padx=15,sticky=tk.W)
+    delay_lable = tk.Label(col1_frame, text='delay: ')
+    which_nodes_lable = tk.Label(col1_frame, text='nodes: ')
+    delay = tk.Entry(col1_frame, state=tk.NORMAL, textvariable=self.DoSDelayVal, width=3)
+    which_nodes = tk.Entry(col1_frame, state=tk.NORMAL, textvariable=self.DoSNodesVal, width=15)
+    delay_lable.grid(row=1,column=0, pady=10, padx=15,sticky=tk.E)
+    which_nodes_lable.grid(row=2,column=0, pady=10, padx=15,sticky=tk.E)
     delay.grid(row=1,column=1,sticky=tk.W)
     which_nodes.grid(row=2,column=1,sticky=tk.W)
+    # 结束第一列
+    col1_frame.grid(row=0,column=0)
+    '''第二列'''
+    col2_frame = tk.Frame(wind_DoS)
+    # 随机DoS攻击 和 攻击率
+    DoS_ratio_label = tk.Label(col2_frame, text='ratio: ')
+    DoS_ratio = tk.Entry(col2_frame, state=tk.NORMAL, textvariable=self.DoSRandomRatio, width=3)
+    self.checkbutton_select_event('DoS_random', DoS_ratio)
+    is_random = tk.Checkbutton(col2_frame, text='Random', variable=self.DoSIsRandomVal, onvalue=True, offvalue=False, command=lambda:self.checkbutton_select_event('DoS_random',DoS_ratio))
+    is_random.grid(row=0,column=0,sticky=tk.W)
+    DoS_ratio_label.grid(row=1,column=0,sticky=tk.E)
+    DoS_ratio.grid(row=1,column=1,sticky=tk.W)
+    # 结束第二列
+    col2_frame.grid(row=0,column=1,sticky=tk.N)
     # 保存按钮
     DoS_conf_dict = {
       'DoS_start':start_moment,
       'DoS_nodes':which_nodes,
       'DoS_delay':delay,
+      'DoS_is_random':is_random,
+      'DoS_random_ratio':DoS_ratio,
     }
     save_button = tk.Button(wind_DoS, text='Save', padx=10, pady=5, command=lambda:self.saveconf_event('DoS', DoS_conf_dict, wind_DoS))
     save_button.grid(row=6,column=0,columnspan=2,pady=20,sticky=tk.W+tk.E)
@@ -474,6 +513,11 @@ class Window(object):
         param.config(state=tk.NORMAL)
       else:
         param.config(state=tk.DISABLED)
+    if which == 'DoS_random':
+      if self.DoSIsRandomVal.get() is True:
+        param.config(state=tk.NORMAL)
+      else:
+        param.config(state=tk.DISABLED)
 
   def radiobutton_select_event(self, which, param):
     """
@@ -495,8 +539,8 @@ class Window(object):
         self.scada_angle_label.config(text=' ')
         self.scada_angle.config(state=tk.DISABLED)
       elif param == 'PowerGrid':
-        self.network_size['values']=('118',)
-        self.network_size_list = ('118',)
+        self.network_size['values']=('118','300','57','30','14')
+        self.network_size_list = ('118','300','57','30','14')
         #variance
         self.pmu_voltage_label.config(text='PMU Volt')
         self.pmu_angle_label.config(text='PMU Angl')
@@ -635,6 +679,8 @@ class Window(object):
         'DoS_start': self.DoSStartMomentVal.get(),
         'DoS_nodes': b,
         'DoS_delay': self.DoSDelayVal.get(),
+        'DoS_is_random': self.DoSIsRandomVal.get(),
+        'DoS_random_ratio': self.DoSRandomRatio.get(),
       }
       self.DoS_conf_dict = conf_dict
     with open('cache/'+ which +'_conf.json','w',encoding='utf-8') as f:
@@ -709,18 +755,6 @@ def main():
   w = Window()
   w.wind_main.mainloop()
   exit()
-  ### 电网建模 ###
-  #model.inject_baddata(moment=1, probability=50)  # 在第5个仿真时刻开始每个仪表有10/10e6的概率产生坏数据
-
-  '''
-  model = Richardson(118, cdf_conf, cdf_rule_bus, cdf_rule_branch, nodes, PMU)
-  #model.set_variance(pmu=[1000,1000],scada=[1,1])
-  #model.delete_reference_bus()
-  #model.inject_baddata(moment=1, probability=50)  # 坏数据
-  false_dic = {'which_state':[10,28,50,100,200,17,75,91,125,171],'effect':[5,4.5,4,3.5,3,30,30,30,30,30]}
-  #model.inject_falsedata(moment=0,conf_dic=false_dic)  # 注入虚假数据
-  #model.detect_baddata(centralized=True)
-  '''
 
 if __name__ == '__main__':
   main()

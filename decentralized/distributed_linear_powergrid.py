@@ -359,7 +359,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
         plt.subplot(211)
         plt.title('与全局估计相比')
         plt.plot(range(self.state_size), self.x_est_distribute - self.x_est_center, 'b.') # 点图
-        plt.axis([0,236,-2,35])
+        plt.xlim([0,self.state_size])
         plt.xlabel("状态")
         plt.ylabel("误差")
         # 与真实状态相比
@@ -367,17 +367,17 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
         tmp_cnt=0
         plt.title('与真实状态相比')
         plt.plot(range(self.state_size), self.x_est_distribute - self.x_real, 'b.') # 点图
-        plt.axis([0,236,-2,35])
+        plt.xlim([0,self.state_size])
         plt.xlabel("状态")
         plt.ylabel("误差")
-        plt.show()
+        plt.draw()
         # 估计误差(按状态划分)
         plt.figure('估计误差(顺序)')
         # 与全局估计相比
         plt.subplot(211)
         plt.title('与全局估计相比')
         plt.plot(range(self.state_size), self.col_reorder_matrix.T * (self.x_est_distribute - self.x_est_center), 'b.') # 点图
-        plt.axis([0,236,-2,35])
+        plt.xlim([0,self.state_size])
         plt.xlabel("状态")
         plt.ylabel("误差")
         # 与真实状态相比
@@ -385,7 +385,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
         tmp_cnt=0
         plt.title('与真实状态相比')
         plt.plot(range(self.state_size), self.col_reorder_matrix.T * (self.x_est_distribute - self.x_real), 'b.') # 点图
-        plt.axis([0,236,-2,35])
+        plt.xlim([0,self.state_size])
         plt.xlabel("状态")
         plt.ylabel("误差")
         plt.show()
@@ -461,7 +461,7 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
   def plot(self, est_res, choosen_state=9):
     x_single_axis = np.arange(1,self.sim_time+1).T
     x_axis = np.tile(np.arange(1,self.sim_time+1),[self.state_size,1]).T # 向下复制
-    plt.figure('非线性算法各仿真时刻状态估计结果')
+    plt.figure('各仿真时刻状态估计结果')
     plt.subplot(211)
     plt.title(str(choosen_state) + '状态细节图')
     plt.plot(x_single_axis, est_res['state_est'][choosen_state,:].T, 'g*-')
@@ -598,10 +598,10 @@ class DistributedLinearPowerGrid(LinearPowerGrid):
         plt.plot(chi_list, 'r--', marker='.')
         plt.plot(detect_res_list, 'b', marker='.')
         plt.legend(['阈值', '残差'], loc='upper right', frameon=False)
-        plt.axis([0,7,0,110])
+        plt.axis([0,self.nodes_num-1,0,110])
         plt.xlabel("子系统号")
         plt.ylabel("幅值")
-        plt.show()
+        plt.draw()
       return is_bad,detect_res_list
 
   def gen_graph(self):

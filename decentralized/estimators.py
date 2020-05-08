@@ -14,6 +14,10 @@ RICHARDSON_GAMMA_PERIOD = 100
 
 STOCASTIC_MAIN_PERIOD = 500
 
+# 颜色设置
+colors = ['red','saddlebrown','darkorange','gold','yellow','greenyellow','green','aquamarine','cyan','teal','deepskyblue','blue','purple','fuchsia','deeppink','pink']
+#random.shuffle(colors)
+
 class Richardson:
   """
   利用 Richardson 方法进行分布式估计
@@ -57,6 +61,8 @@ class Richardson:
       sample[i,:] = axis1
     self.record = []
 
+    self.DoS_time_dict = {}
+
     self.alpha = []
     self.Precondition = []
     self.est_x = []
@@ -77,10 +83,16 @@ class Richardson:
       self.x_est_distribute_lists.append(np.mat(np.empty([self.cluster_info_dict[i]['col_amount'],1])))
     ## 分布式计算最大最小特征值
     if self.conf_dict['is_finite'] is False:
+      # 记录值
       self.sigma = np.empty(self.nodes_num)
       self.gamma_max_record = []
       self.gamma_min_record = []
       self.sigma_record = []
+      self.bTildeNorm_record = []
+      self.bBarNorm_record = []
+      self.yitaBar_record = []
+      self.v_record = []
+      # 队列
       self.sigma_first = []
       self.sigma_second = []
       for i in range(self.nodes_num):
@@ -89,6 +101,10 @@ class Richardson:
         self.gamma_max_record.append([])
         self.gamma_min_record.append([])
         self.sigma_record.append([])
+        self.bTildeNorm_record.append(np.zeros(self.conf_dict['gamma_period']))
+        self.bBarNorm_record.append(np.zeros(self.conf_dict['gamma_period']))
+        self.yitaBar_record.append({})
+        self.v_record.append({})
 
       for i in range(self.nodes_num):
         eig_thread_nodes.append(threading.Thread(target=self.__maxmin_eigenvalue, args=(i, lock_con, False)))
@@ -98,6 +114,58 @@ class Richardson:
       # wait gameover
       for n in eig_thread_nodes:
         n.join()
+      # 特征值画图
+      if is_plot is True:
+        '''特征值'''
+        plt.figure('Gamma最大最小特征值')
+        subplotRow = int(np.sqrt(self.nodes_num)) # 中间值的行列数
+        subplotCol = int(np.ceil(self.nodes_num/(subplotRow)))
+        # 最大最小特征值
+        plt.subplot(subplotRow+1,2,1)
+        for i in range(self.nodes_num):
+          plt.plot(self.gamma_max_record[i], color=colors[i])
+          plt.plot(self.gamma_min_record[i], color=colors[i],linestyle='--')
+          plt.grid(True)
+        plt.title(r'$\lambda^{(\Upsilon)}_{\max,\min}$')
+        # sigma
+        plt.subplot(subplotRow+1,2,2)
+        for i in range(self.nodes_num):
+          plt.plot(self.sigma_record[i],color=colors[i])
+          plt.legend(list(map(str,range(self.nodes_num))), loc='upper right', frameon=False)
+          plt.grid(True)
+        plt.title(r"$\sigma=2/(\lambda^{(\Upsilon)}_{\max}+\lambda^{(\Upsilon)}_{\min})$")
+        # 中间传输值
+        for i, val in enumerate(self.yitaBar_record):
+          plt.subplot(subplotRow+1,subplotCol,subplotCol+i+1)
+          plt.plot(self.bTildeNorm_record[i], 'black', linestyle='-.')
+          plt.plot(self.bBarNorm_record[i], 'blue', linestyle='-.')
+          if len(self.DoS_time_dict[i]) != 0:
+            plt.scatter(self.DoS_time_dict[i], self.bTildeNorm_record[i][self.DoS_time_dict[i]], color='black', marker='x')
+          legend = []
+          for node,vval in val.items():
+            plt.plot(vval,color=colors[node])
+            legend.append(r'$\varsigma^{('+str(i)+r')}_'+str(node)+r'$')
+            if len(self.DoS_time_dict[node]) != 0:
+              plt.scatter(self.DoS_time_dict[node], vval[self.DoS_time_dict[node]], color=colors[node], marker='x')
+            plt.grid(True)
+          plt.title(r'$\bar{\varsigma}^{(\mathrm{Neighbors})}_'+str(i)+r',\Vert\tilde{b}_'+str(i)+r'\Vert$'+r'$,\Vert\bar{b}_'+str(i)+r'\Vert$')
+          plt.legend([r'$\Vert\tilde{b}_'+str(i)+r'\Vert$', r'$\Vert\bar{b}_'+str(i)+r'\Vert$']+legend)
+        plt.draw()
+        '''特征值2'''
+        plt.figure(r'特征值中$v_{ij}$具体值')
+        for node,val in enumerate(self.v_record):
+          plt.subplot(subplotRow,subplotCol,node+1)
+          legend = []
+          handles = []
+          for node_in_me,vval in val.items():
+            legend.append(r'$v_{'+str(node_in_me)+r'*}^{('+str(node)+r')}'+r'$')
+            for node_neighbors, vvval in vval.items():
+              line, = plt.plot(vvval,color=colors[node_in_me])
+              plt.grid(True)
+            handles.append(line)
+          plt.title(r'$v_{ij}^{('+str(node)+r')}'+r'$')
+          plt.legend(handles=handles,labels=legend)
+        plt.draw()
     ## 分布式计算状态
     if self.conf_dict['is_finite'] is True:  # 有限步算法
       for i in range(self.nodes_num):
@@ -118,41 +186,31 @@ class Richardson:
     self.x_est_distribute = np.vstack(self.x_est_distribute_lists)
     # 画出估计结果
     if is_plot is True:
-      if self.conf_dict['is_finite'] is False:
-        plt.figure('Gamma最大最小特征值')
-        plt.subplot(211)
-        for i in range(self.nodes_num):
-          plt.plot(self.gamma_max_record[i] ,'b--')
-          plt.plot(self.gamma_min_record[i] ,'r')
-        plt.subplot(212)
-        for i in range(self.nodes_num):
-          plt.plot(self.sigma_record[i])
-        plt.show()
       # 分布式估计过程
       plt.figure('分布式估计过程')
       # 电压
       plt.subplot(211)
-      plt.title('电压估计')
+      plt.title('Voltage')
       # for i in self.conf_dict['attacked_nodes']: # 只画受攻击节点的状态估计图像
       for i in range(self.nodes_num):
         for j in range(0, self.cluster_info_dict[i]['col_amount'], 2):
-          plt.plot(self.record[i][j,:].T, 'b')
-      plt.legend([u'电压'], loc='upper right', frameon=False)
+          plt.plot(self.record[i][j,:].T, color=colors[i])
+      #plt.legend([u'电压'], loc='upper right', frameon=False)
       plt.axis([0,self.conf_dict['main_period'],-7.5,12.5])
-      plt.xlabel("迭代次数")
-      plt.ylabel("幅值")
+      plt.xlabel("frequence")
+      plt.ylabel("V")
       # 电压相角
       plt.subplot(212)
-      plt.title('电压相角估计')
+      plt.title('Voltage Phase Angle')
       #for i in self.conf_dict['attacked_nodes']:
       for i in range(self.nodes_num):
         for j in range(1, self.cluster_info_dict[i]['col_amount'], 2):
-          plt.plot(self.record[i][j,:].T, 'r')
-      plt.legend([u'电压相角'], loc='upper right', frameon=False)
+          plt.plot(self.record[i][j,:].T, color=colors[i])
+      #plt.legend([u'电压相角'], loc='upper right', frameon=False)
       plt.axis([0,self.conf_dict['main_period'],0,65])
-      plt.xlabel("迭代次数")
-      plt.ylabel("幅值")
-      plt.show()
+      plt.xlabel("frequence")
+      plt.ylabel("degree")
+      plt.draw()
     ''' 保存 '''
     '''
     mat_save_dict = {}
@@ -186,11 +244,33 @@ class Richardson:
     neighbor_in_me = self.neighbors_dict[num]['me']
     # neighbors
     neighbors = self.neighbors_dict[num]['neighbors']
-
-    # Send my Phi(k)_himhim to neighbor_me && Record Phi(k)_himhim
+    # 初始化yitaBar_record
+    for i in neighbor_in_him:
+      self.yitaBar_record[num][i]=np.zeros(self.conf_dict['gamma_period'])
+    # 初始化v_record (维度1: 上标k: 谁计算; 维度2: 下标j: k的邻居; 维度3: 下标i: 发给谁)
+    for i in neighbor_in_me:
+      self.v_record[num][i] = {}
+      for j in neighbors:
+        self.v_record[num][i][j] = np.zeros(self.conf_dict['gamma_period'])
+    ''' DoS配置 '''
+    DoS_time = []
+    if self.conf_dict['is_DoS'] is True:
+      # Random DoS
+      if self.DoS_conf_dict['DoS_is_random'] is True:
+        p = np.array([1-self.DoS_conf_dict['DoS_random_ratio']*0.01, self.DoS_conf_dict['DoS_random_ratio']*0.01])
+        for t in range(self.conf_dict['gamma_period']):
+          if np.random.choice([False,True], p=p) == True:
+            DoS_time.append(t)
+      # a piece of time DoS
+      if num in self.DoS_conf_dict['DoS_nodes']:
+        DoS_time += list(range(self.DoS_conf_dict['DoS_start'], self.DoS_conf_dict['DoS_start']+self.DoS_conf_dict['DoS_delay']))
+    DoS_time = list(set(DoS_time))
+    DoS_time.sort()
+    self.DoS_time_dict[num] = DoS_time
+    ''' 初始化 '''
+    # 发送 my Phi(k)_himhim 给 neighbor_me 和 Record Phi(k)_himhim
     for i in neighbor_in_me:
       self.Precondition[i].put([num, self.H_distribute[num][i].H*self.R_I_distribute_diag[num]*self.H_distribute[num][i]])
-
     # Accumulate my Phi_meme and calc Precondition matrix
     my_Precondition = np.mat(np.zeros([self.cluster_info_dict[num]['col_amount'], self.cluster_info_dict[num]['col_amount']]), dtype=complex)
     for i in neighbor_in_him:
@@ -201,28 +281,31 @@ class Richardson:
     my_Precondition = my_Precondition.I
     my_Precondition_sqrt = np.linalg.cholesky(my_Precondition)
     self.Precondition_distribute.update({num:my_Precondition_sqrt})
-
     ## 计算Gamma的最大特征值 ##
     # initial b_0 with random ||b_0|| = 1 
     b_bar = np.mat(np.random.rand(self.cluster_info_dict[num]['col_amount'], 1), dtype=complex) # 随机初始值
     #b_bar = np.mat(np.ones((self.cluster_info_dict[num]['col_amount'], 1)))*0.7
     b_bar = b_bar / np.linalg.norm(b_bar,ord=2)	# normallize
     yita = 1
-    # It seems that i in neighbor_in_me is also ok
+    # 设置初始参数
     v_ij = {}
     for i in neighbors:
       v_ij.update({str(i):{}})
       for j in neighbors:
         v_ij[str(i)].update({str(j):1})
+    b_hat = {}
+    for i in neighbor_in_me:
+      b_hat.update({str(i):np.mat(np.zeros([self.cluster_info_dict[i]['col_amount'], 1]), dtype=complex)})
+    yita_candidate = [0]
     # 显示进度
     if num == 0:
       self.pbar=tqdm(total=self.conf_dict['gamma_period'])
-    # 开始迭代
+    ''' 开始迭代 '''
     for t in range(self.conf_dict['gamma_period']):
-      # Send sigma_first to neighbors
+      # 发送 sigma_first 给neighbors
       for i in neighbors:
         self.sigma_first[i].put([num, my_Precondition_sqrt*b_bar, yita])
-      # Recieve sigma_first
+      # 接收 sigma_first
       comein_dict = {}
       for i in neighbors:
         get = self.sigma_first[num].get()
@@ -230,31 +313,43 @@ class Richardson:
         if get[0] not in neighbors: # some are not in me
           raise Exception('Wrong come in '+str(get[0]))
       # v_ij
-      if not (self.conf_dict['is_DoS'] is True and (num in self.DoS_conf_dict['DoS_nodes'] and t >= self.DoS_conf_dict['DoS_start'] and t < self.DoS_conf_dict['DoS_start']+self.DoS_conf_dict['DoS_delay'])):
+      if t not in DoS_time:
+        v_max = 1
+        v_max_2 = 1
         for i in neighbor_in_me:
           for j in neighbors:
             v_ij[str(i)][str(j)] = comein_dict[str(i)][1] / comein_dict[str(j)][1] * v_ij[str(i)][str(j)]
+            if v_ij[str(i)][str(j)] > v_max:
+              v_max = v_ij[str(i)][str(j)]
+              if v_ij[str(i)][str(j)] > v_max_2 and v_ij[str(i)][str(j)] < v_max:
+                v_max_2 = v_ij[str(i)][str(j)]
+        ''' # 限高
+        for i in neighbor_in_me:
+          for j in neighbors:
+            if v_ij[str(i)][str(j)] > 3*v_max_2:
+              v_ij[str(i)][str(j)] = 3*v_max_2
+        '''
       # yita_bar_in_me
       yita_bar_in_me = []
       for i in neighbor_in_me:
         yita_bar_in_me.append(v_ij[str(i)][max(v_ij[str(i)], key = v_ij[str(i)].get)])
-      # b_hat
-      b_hat = {}
-      for i in neighbor_in_me:
-        b_hat.update({str(i):np.mat(np.zeros([self.cluster_info_dict[i]['col_amount'], 1]), dtype=complex)})
-        for j in neighbor_in_me:
-          b_hat[str(i)] += v_ij[str(i)][str(j)] * self.H_distribute[num][i].H*self.R_I_distribute_diag[num]*self.H_distribute[num][j] * comein_dict[str(j)][0]
-      # Send sigma_second to neighbor_me
-      tmp_cnt = 0
-      for i in neighbor_in_me:
-        self.sigma_second[i].put([num, b_hat[str(i)], yita_bar_in_me[tmp_cnt]])
-        tmp_cnt += 1
-      # Recieve sigma_second
+      
+      if t not in DoS_time:
+        # b_hat
+        b_hat = {}
+        for i in neighbor_in_me:
+          b_hat.update({str(i):np.mat(np.zeros([self.cluster_info_dict[i]['col_amount'], 1]), dtype=complex)})
+          for j in neighbor_in_me:
+            b_hat[str(i)] += v_ij[str(i)][str(j)] * self.H_distribute[num][i].H*self.R_I_distribute_diag[num]*self.H_distribute[num][j] * comein_dict[str(j)][0]
+      # 发送 sigma_second 给 neighbor_me
+      for cnt,i in enumerate(neighbor_in_me):
+        self.sigma_second[i].put([num, b_hat[str(i)], yita_bar_in_me[cnt]])
+      # 接收 sigma_second
       comein_dict = {}
       for k in neighbor_in_him:
         get = self.sigma_second[num].get()
         comein_dict.update({ str(get[0]): [get[1], get[2]]})
-      if not (self.conf_dict['is_DoS'] is True and (num in self.DoS_conf_dict['DoS_nodes'] and t >= self.DoS_conf_dict['DoS_start'] and t < self.DoS_conf_dict['DoS_start']+self.DoS_conf_dict['DoS_delay'])):
+      if t not in DoS_time:
         # Accumulate b_hat to calc b_tilde
         b_tilde = np.mat(np.zeros([ self.cluster_info_dict[num]['col_amount'], 1 ]), dtype=complex)
         for k in neighbor_in_him:
@@ -267,12 +362,15 @@ class Richardson:
         yita = 1 / max( yita_candidate )
         # b_bar
         b_bar = yita * b_tilde
-      if num in self.DoS_conf_dict['DoS_nodes'] and t == -1+self.DoS_conf_dict['DoS_start']+self.DoS_conf_dict['DoS_delay']:
-        print(yita_candidate)
-        print(v_ij)
       # 记录
       self.gamma_max_record[num].append(1/yita)
-
+      for k in neighbor_in_him:
+        self.yitaBar_record[num][k][t] = comein_dict[str(k)][1]
+      for i in neighbor_in_me:
+        for j in neighbors:
+          self.v_record[num][i][j][t] = v_ij[str(i)][str(j)]
+      self.bTildeNorm_record[num][t] = yita_candidate[0]
+      self.bBarNorm_record[num][t] = np.linalg.norm(b_bar, ord=2)
       lock_con.acquire()
       if self.task_lock.qsize() != self.nodes_num-1:
         self.task_lock.put(num)
@@ -376,8 +474,8 @@ class Richardson:
     #print('%s-Gamma最小特征值: %.3f' % (threading.current_thread().name, Gamma_min))
     ## 计算 sigma
     sigma = 2 / ( Gamma_max + Gamma_min )
-#    if num in [1,2]:
-#      sigma = sigma+0.1
+    #if num in [1,2]:
+    #sigma = sigma+0.1
     # print(threading.current_thread().name + 'sigma: ' + str(sigma))
     self.sigma[num] = sigma
 

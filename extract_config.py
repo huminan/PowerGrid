@@ -79,6 +79,7 @@ class tools(object):
         cnt = 0
         for t_data in lines.split(v_separator):
           if self.rules[self.items_name[cnt]] == 1:
+            print(self.items_name[cnt], cnt, self.num_cnt)
             self.items[self.items_name[cnt]].append(int(t_data))
           elif self.rules[self.items_name[cnt]] == 2:
             self.items[self.items_name[cnt]].append(float(t_data))

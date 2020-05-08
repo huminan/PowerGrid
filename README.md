@@ -16,13 +16,9 @@ This project up to now have built a DC/AC power grid simulator environment with 
 
 ## Framework need to do
 
-- [ ] IEEE $< 118$ bus and 300 bus system
+- [ ] IEEE 300 bus system
 
 - [ ] Classical kalman filter state estimation (Centralized and Distributed)
-
-- [ ] Communication delay (how about introduce ns3?)
-
-- [ ] A better GUI (FDI configuration aquired)
 
 - [ ] Make the algorithm more suitable for distribution 
 
@@ -36,6 +32,12 @@ This project up to now have built a DC/AC power grid simulator environment with 
 - [ ] FDI Detection by sparse optimization [[6]](https://sci-hub.se/https://ieeexplore.ieee.org/abstract/document/6740901/), machine learning [[7]](https://sci-hub.se/https://ieeexplore.ieee.org/abstract/document/7063894/)
 
 ## Have done
+
+- [x] A better GUI (FDI configuration aquired)
+
+- [x] Communication delay
+
+- [x] IEEE $< 118$ bus systems
 
 - [x] Dynamic (time varying state space equation) power system
 - [x] AC measure model
